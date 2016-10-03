@@ -1,0 +1,23 @@
+plugins {
+	id 'java'
+}
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    compile 'org.slf4j:slf4j-api:1.7.21'
+    compile 'org.slf4j:slf4j-simple:1.7.21'
+    compile 'commons-io:commons-io:2.5'
+    compile 'org.apache.commons:commons-lang3:3.4'
+    compile 'com.google.code.gson:gson:2.7'
+    compile 'com.google.guava:guava:19.0'
+    compile 'net.sf.trove4j:trove4j:3.0.3'
+    compile 'com.google.code.gson:gson:2.7'
+    
+	compile 'org.lwjgl:lwjgl:3.0.0'
+	compile 'org.lwjgl:lwjgl-platform:3.0.0:natives-windows'
+	
+    testCompile 'junit:junit:4.12'
+}
