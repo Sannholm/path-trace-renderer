@@ -4,15 +4,89 @@ layout(rgba8) uniform image2D framebuffer;
 uniform vec2 framebufferSize;
 uniform float time;
 
-void main()
+struct Ray
 {
-	ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
-	vec2 uv = coord / framebufferSize;
-	
+	vec3 origin;
+	vec3 dir;
+};
+
+struct Sphere
+{
+	vec3 center;
+	float radius;
+};
+
+struct Intersection
+{
+	bool hit;
+	vec3 pos;
+	vec3 normal;
+};
+
+vec3 blinkingDot(ivec2 coord)
+{
 	vec2 d = coord - framebufferSize * 0.5;
 	d = d * d;
-	float d2 = sqrt(d.x + d.y) / 300;
-	vec4 color = vec4(mix(mix(vec3(1,0,0), vec3(0), sin(time) * 0.5 + 0.5), vec3(0), pow(d2, 2)), 1);
+	const float d2 = sqrt(d.x + d.y) / 300;
+	return mix(mix(vec3(1,0,0), vec3(0), sin(time)*0.5+0.5),vec3(0),pow(d2, 2));
+}
+
+Intersection intersectSphere(Sphere s, Ray r)
+{
+	const vec3 rc = r.origin - s.center;
+	const float c = dot(rc, rc) - s.radius * s.radius;
+	const float b = dot(r.dir, rc);
+	const float d = b * b - c;
+	const float t = -b - sqrt(abs(d));
 	
- 	imageStore(framebuffer, coord, color);
+    const bool hit = d >= 0 && t >= 0;
+    vec3 hitPos = vec3(0);
+    vec3 hitNormal = vec3(0);
+    
+    if (hit)
+    {
+    	hitPos = r.origin + r.dir * t;
+    	hitNormal = normalize(hitPos - s.center);
+	}
+	
+	return Intersection(hit, hitPos, hitNormal);
+}
+
+vec3 traceScene(Ray ray)
+{
+	const Sphere spheres[] = Sphere[](
+		Sphere(vec3(sin(time) * 0.5, 0, -1), 0.5),
+		Sphere(vec3(cos(time) * 0.5, sin(time) * 0.5, -1), 0.5)
+	);
+	
+	vec3 color = vec3(0,1,1);
+	Intersection inter = intersectSphere(spheres[0], ray);
+	for (int i = 1; i < spheres.length(); i++)
+	{
+		Intersection newInter = intersectSphere(spheres[i], ray);
+		if (newInter.hit && !inter.hit || newInter.hit && length(newInter.pos - ray.origin) < length(inter.pos - ray.origin))
+		{
+			inter = newInter;
+			color = vec3(i / (spheres.length() - 1),1,1);
+		}
+	}
+
+	//return vec3(inter.hit ? color : 0);
+	//return vec3(inter.hit ? (length(inter.pos - ray.origin)) : 0);
+	return vec3(inter.hit ? abs(inter.normal) : 0);
+}
+
+void main()
+{
+	const ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+	const vec2 uv = coord / framebufferSize * 2 - 1;
+	const float aspectRatio = framebufferSize.x / framebufferSize.y;
+	const vec2 pos = vec2(uv.x * aspectRatio, uv.y);
+	
+	const vec3 start = vec3(pos, 0);
+	const vec3 dir = vec3(0, 0, -1);
+	const vec3 color = traceScene(Ray(start, dir));
+	
+ 	imageStore(framebuffer, coord, vec4(color, 1));
+ 	//imageStore(framebuffer, coord, vec4(vec3(pos, 0), 1));
 }
