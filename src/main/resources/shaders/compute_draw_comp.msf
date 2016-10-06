@@ -16,6 +16,12 @@ struct Sphere
 	float radius;
 };
 
+struct AABB
+{
+	vec3 min;
+	vec3 max;
+};
+
 struct Intersection
 {
 	bool hit;
@@ -52,28 +58,89 @@ Intersection intersectSphere(Sphere s, Ray r)
 	return Intersection(hit, hitPos, hitNormal);
 }
 
+Intersection intersectAABB(AABB aabb, Ray r)
+{
+	const vec3 rayDirInv = 1 / r.dir;
+	
+	const float tx1 = (aabb.min.x - r.origin.x) * rayDirInv.x;
+    const float tx2 = (aabb.max.x - r.origin.x) * rayDirInv.x;
+ 	const float txMin = min(tx1, tx2);
+ 
+    float tmin = txMin;
+    float tmax = max(tx1, tx2);
+    
+    const float ty1 = (aabb.min.y - r.origin.y) * rayDirInv.y;
+    const float ty2 = (aabb.max.y - r.origin.y) * rayDirInv.y;
+ 	const float tyMin = min(ty1, ty2);
+ 	
+ 	tmin = max(tmin, tyMin);
+    tmax = min(tmax, max(ty1, ty2));
+    
+    const float tz1 = (aabb.min.z - r.origin.z) * rayDirInv.z;
+    const float tz2 = (aabb.max.z - r.origin.z) * rayDirInv.z;
+ 	const float tzMin = min(tz1, tz2);
+ 	
+ 	tmin = max(tmin, tzMin);
+    tmax = min(tmax, max(tz1, tz2));
+	
+    const bool hit = tmax > max(tmin, 0);
+    vec3 hitPos = vec3(0);
+    vec3 hitNormal = vec3(0);
+    
+    if (hit)
+    {
+    	hitPos = r.origin + r.dir * tmin;
+    	
+    	if (txMin > tyMin && txMin > tzMin)
+        {
+            hitNormal = vec3(-sign(r.dir.x), 0, 0);
+        }
+        else if (tyMin > txMin && tyMin > tzMin)
+        {
+            hitNormal = vec3(0, -sign(r.dir.y), 0);
+        }
+        else
+        {
+            hitNormal = vec3(0, 0, -sign(r.dir.z));
+        }
+	}
+	
+	return Intersection(hit, hitPos, hitNormal);
+}
+
 vec3 traceScene(Ray ray)
 {
 	const Sphere spheres[] = Sphere[](
-		Sphere(vec3(sin(time) * 0.5, 0, -1), 0.5),
-		Sphere(vec3(cos(time) * 0.5, sin(time) * 0.5, -1), 0.5)
+		Sphere(vec3(sin(time) * 2, 0, -1), 0.5),
+		Sphere(vec3(cos(time) * 0.5, sin(time) * 0.5, -10), 0.5),
+		Sphere(vec3(2, 0, -10 + cos(time) * 10), 0.5)
 	);
 	
-	vec3 color = vec3(0,1,1);
-	Intersection inter = intersectSphere(spheres[0], ray);
-	for (int i = 1; i < spheres.length(); i++)
+	const AABB aabbs[] = AABB[](
+		AABB(vec3(-1 + sin(time) * 2, -1, -20),
+			vec3(1 + sin(time) * 2, -0.9, -1))
+	);
+	
+	Intersection inter = Intersection(false, vec3(0), vec3(0));
+	for (int i = 0; i < spheres.length(); i++)
 	{
 		Intersection newInter = intersectSphere(spheres[i], ray);
-		if (newInter.hit && !inter.hit || newInter.hit && length(newInter.pos - ray.origin) < length(inter.pos - ray.origin))
+		if (newInter.hit && (!inter.hit || length(newInter.pos - ray.origin) < length(inter.pos - ray.origin)))
 		{
 			inter = newInter;
-			color = vec3(i / (spheres.length() - 1),1,1);
 		}
 	}
-
-	//return vec3(inter.hit ? color : 0);
+	for (int i = 0; i < aabbs.length(); i++)
+	{
+		Intersection newInter = intersectAABB(aabbs[i], ray);
+		if (newInter.hit && (!inter.hit || length(newInter.pos - ray.origin) < length(inter.pos - ray.origin)))
+		{
+			inter = newInter;
+		}
+	}
+	
 	//return vec3(inter.hit ? (length(inter.pos - ray.origin)) : 0);
-	return vec3(inter.hit ? abs(inter.normal) : 0);
+	return vec3(inter.hit ? inter.normal : 0);
 }
 
 void main()
@@ -84,7 +151,7 @@ void main()
 	const vec2 pos = vec2(uv.x * aspectRatio, uv.y);
 	
 	const vec3 start = vec3(pos, 0);
-	const vec3 dir = vec3(0, 0, -1);
+	const vec3 dir = vec3(pos * 90 / 180, -1);
 	const vec3 color = traceScene(Ray(start, dir));
 	
  	imageStore(framebuffer, coord, vec4(color, 1));
