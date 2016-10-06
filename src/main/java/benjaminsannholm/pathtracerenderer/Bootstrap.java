@@ -40,7 +40,11 @@ import org.lwjgl.opengl.GL42;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import benjaminsannholm.util.math.Matrix4;
+import benjaminsannholm.util.math.Quaternion;
+import benjaminsannholm.util.math.Transform;
 import benjaminsannholm.util.math.Vector2;
+import benjaminsannholm.util.math.Vector3;
 import benjaminsannholm.util.opengl.GLAPI;
 import benjaminsannholm.util.opengl.geometry.FullscreenQuadRenderer;
 import benjaminsannholm.util.opengl.shader.ShaderManager;
@@ -82,6 +86,10 @@ public class Bootstrap
     private double timeElapsed;
 
     private Texture2D mainFrameBufferTex;
+    
+    private Transform cameraTransform;
+    private Matrix4 projectionMatrix;
+    private Matrix4 viewMatrix;
 
     public void run()
     {
@@ -161,12 +169,8 @@ public class Bootstrap
             final double delta = glfwGetTime() - prevFrameTime;
             timeElapsed += delta;
             prevFrameTime = glfwGetTime();
-            
-            if (timeElapsed % 5 > 0.00001)
-            {
-                shaderManager.clearPrograms();
-            }
 
+            update();
             render();
 
             glfwSwapBuffers(window);
@@ -174,31 +178,51 @@ public class Bootstrap
         }
     }
 
+    private void update()
+    {
+        if (timeElapsed % 5 > 0.00001)
+        {
+            shaderManager.clearPrograms();
+        }
+
+        cameraTransform = Transform.create(
+                Vector3.create(0, 0, 0),
+                Quaternion.fromAxisAngle(Vector3.Y_AXIS, 0),
+                Vector3.ONE);
+
+        projectionMatrix = Matrix4.createPerspectiveProjection(0.1F, 1000, 90, (float) mainFrameBufferTex.getWidth() / mainFrameBufferTex.getHeight());
+        viewMatrix = cameraTransform.getRot().toMatrix4();
+    }
+
     private void render()
     {
+        final Matrix4 invViewProjMatrix = projectionMatrix.multiply(viewMatrix).invert();
+        
         mainFrameBufferTex.bindImage(0, Access.WRITE, Format.RGBA8);
-
+        
         final ShaderProgram program1 = shaderManager.getProgram("compute_draw");
         program1.setUniform("framebuffer", 0);
         program1.setUniform("framebufferSize", Vector2.create(mainFrameBufferTex.getWidth(), mainFrameBufferTex.getHeight()));
         program1.setUniform("time", (float) timeElapsed);
+        program1.setUniform("invViewProjMatrix", invViewProjMatrix);
+        program1.setUniform("camPos", cameraTransform.getPos());
         program1.use();
-
+        
         GLAPI.dispatchCompute(mainFrameBufferTex.getWidth(), mainFrameBufferTex.getHeight(), 1);
         GLAPI.memoryBarrier(GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-
+        
         FrameBuffer.unBind();
         GLAPI.clearColor(0, 0, 0, 1);
         GLAPI.setViewport(0, 0, width, height);
-
+        
         mainFrameBufferTex.bind(0);
-
+        
         final ShaderProgram program2 = shaderManager.getProgram("fullscreen_texture");
         program2.setUniform("texture", 0);
         program2.use();
-
+        
         FullscreenQuadRenderer.render();
-
+        
         Texture2D.unbind(0);
     }
 }
