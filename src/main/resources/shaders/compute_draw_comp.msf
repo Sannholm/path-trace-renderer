@@ -60,6 +60,7 @@ const AABB aabbs[] = AABB[](
 
 Ray makeRay(vec3 origin, vec3 dir)
 {
+	dir = normalize(dir);
 	return Ray(origin, dir, 1 / dir);
 }
 
@@ -76,14 +77,6 @@ float rand(float n)
 float rand(vec2 co)
 {
     return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-}
-
-vec3 blinkingDot(ivec2 coord)
-{
-	vec2 d = coord - framebufferSize * 0.5;
-	d = d * d;
-	const float d2 = sqrt(d.x + d.y) / 300;
-	return mix(mix(vec3(1,0,0), vec3(0), sin(time)*0.5+0.5),vec3(0),pow(d2, 2));
 }
 
 Intersection intersectSphere(Sphere s, Ray r)
@@ -185,7 +178,7 @@ void main()
 	ray01 /= ray01.w;
 	vec4 ray11 = vec4(1, 1, 0, 1) * invViewProjMatrix;
 	ray11 /= ray11.w;
-	const vec3 dir = normalize(mix(mix(ray00.xyz, ray01.xyz, uv.y), mix(ray10.xyz, ray11.xyz, uv.y), uv.x));
+	const vec3 dir = mix(mix(ray00.xyz, ray01.xyz, uv.y), mix(ray10.xyz, ray11.xyz, uv.y), uv.x);
 	
 	vec3 color = vec3(0);
 	
