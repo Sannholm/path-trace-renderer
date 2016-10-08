@@ -205,11 +205,11 @@ public class Bootstrap
                 Quaternion.fromAxisAngle(Vector3.Y_AXIS, angle),
                 Vector3.ONE);*/
         cameraTransform = Transform.create(
-                Vector3.create(0, 0, 30),
+                Vector3.create(0, 0, 50),
                 Quaternion.IDENTITY,
                 Vector3.ONE);
         
-        projectionMatrix = Matrix4.createPerspectiveProjection(0.1F, 1000, 90, (float) mainFrameBufferTex.getWidth() / mainFrameBufferTex.getHeight());
+        projectionMatrix = Matrix4.createPerspectiveProjection(0.1F, 1000, 90, (float)mainFrameBufferTex.getWidth() / mainFrameBufferTex.getHeight());
         viewMatrix = cameraTransform.getRot().toMatrix4();
     }
     
@@ -222,7 +222,7 @@ public class Bootstrap
         final ShaderProgram program1 = shaderManager.getProgram("compute_draw");
         program1.setUniform("framebuffer", 0);
         program1.setUniform("framebufferSize", Vector2.create(mainFrameBufferTex.getWidth(), mainFrameBufferTex.getHeight()));
-        program1.setUniform("time", (float) timeElapsed);
+        program1.setUniform("time", (float)timeElapsed);
         program1.setUniform("invViewProjMatrix", invViewProjMatrix);
         program1.setUniform("camPos", cameraTransform.getPos());
         program1.use();
@@ -237,7 +237,7 @@ public class Bootstrap
         mainFrameBufferTex.bind(0);
 
         final ShaderProgram program2 = shaderManager.getProgram("fullscreen_texture");
-        program2.setUniform("texture", 0);
+        program2.setUniform("tex", 0);
         program2.use();
 
         FullscreenQuadRenderer.render();
