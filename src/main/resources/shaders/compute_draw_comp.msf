@@ -51,7 +51,9 @@ uniform vec3 camPos;
 uniform mat4 invViewProjMatrix;
 
 Sphere spheres[] = Sphere[](
-	Sphere(vec3(0,-3,0), 2, Material(vec3(0,0,1), 0.5))
+	Sphere(vec3(0,-3,0), 2, Material(vec3(0.5,0.5,0.5), 0)),
+	Sphere(vec3(-3,3,0), 2, Material(vec3(0.5,0.5,0.5), 0)),
+	Sphere(vec3(3,3,0), 2, Material(vec3(0.5,0.5,0.5), 0))
 );
 
 AABB aabbs[] = AABB[](
@@ -194,9 +196,12 @@ vec3 calcLighting(vec3 pos, vec3 normal)
 	return dcol;
 }
 
-vec3 calcBRDFRay(vec3 pos, vec3 normal, vec3 dir)
+vec3 calcBRDFRay(vec3 pos, vec3 normal, vec3 dir, Material material)
 {
-	return randomHemispherePoint(normal);
+	if (material.roughness == 1)
+		return randomHemispherePoint(normal);
+	else
+		return reflect(dir, normal);
 }
 
 vec3 calculateColor(Ray startRay)
@@ -222,7 +227,7 @@ vec3 calculateColor(Ray startRay)
 		//if (i == 1)
 		tcol += fcol * dcol;
 		
-		ray = makeRay(inter.pos, calcBRDFRay(inter.pos, inter.normal, ray.dir));
+		ray = makeRay(inter.pos, calcBRDFRay(inter.pos, inter.normal, ray.dir, inter.material));
 	}
 	
 	return tcol;
