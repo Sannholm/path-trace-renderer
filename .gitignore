@@ -4,3 +4,4 @@ bin/
 build/
 .classpath
 .project
+hs_err_pid*.log
