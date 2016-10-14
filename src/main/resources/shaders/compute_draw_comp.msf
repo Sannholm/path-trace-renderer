@@ -39,7 +39,7 @@ AABB makeAABB(vec3 center, vec3 size, Material material);
 layout(local_size_x = 16, local_size_y = 16) in;
 
 const float EPSILON = 0.0001;
-const int SAMPLES_PER_PIXEL = 100;
+const int SAMPLES_PER_PIXEL = 1000;
 const int NUM_BOUNCES = 5;
 
 layout(rgba32f) uniform image2D framebuffer;
@@ -51,9 +51,9 @@ uniform vec3 camPos;
 uniform mat4 invViewProjMatrix;
 
 Sphere spheres[] = Sphere[](
-	Sphere(vec3(0,-3,0), 2, Material(vec3(0.5,0.5,0.5), 0)),
-	Sphere(vec3(-3,3,0), 2, Material(vec3(0.5,0.5,0.5), 0)),
-	Sphere(vec3(3,3,0), 2, Material(vec3(0.5,0.5,0.5), 0))
+	Sphere(vec3(0,-3,3), 2, Material(vec3(1,1,1), 1)),
+	Sphere(vec3(-3,3,0), 2, Material(vec3(1,1,1), 0)),
+	Sphere(vec3(3,3,0), 2, Material(vec3(1,1,1), 0))
 );
 
 AABB aabbs[] = AABB[](
@@ -225,7 +225,7 @@ vec3 calculateColor(Ray startRay)
 		
 		fcol *= inter.material.albedo;
 		//if (i == 1)
-		tcol += fcol * dcol;
+		tcol += fcol * dcol * inter.material.roughness;
 		
 		ray = makeRay(inter.pos, calcBRDFRay(inter.pos, inter.normal, ray.dir, inter.material));
 	}
