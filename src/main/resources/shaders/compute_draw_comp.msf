@@ -51,9 +51,9 @@ uniform vec3 camPos;
 uniform mat4 invViewProjMatrix;
 
 Sphere spheres[] = Sphere[](
-	Sphere(vec3(0,-3,3), 2, Material(vec3(1,1,1), 1)),
-	Sphere(vec3(-3,3,0), 2, Material(vec3(1,1,1), 0)),
-	Sphere(vec3(3,3,0), 2, Material(vec3(1,1,1), 0))
+	Sphere(vec3(0,-3,3), 2, Material(vec3(1), 1)),
+	Sphere(vec3(-3,3,0), 2, Material(vec3(1), 0)),
+	Sphere(vec3(3,3,0), 2, Material(vec3(1), 0))
 );
 
 AABB aabbs[] = AABB[](
@@ -66,7 +66,6 @@ AABB aabbs[] = AABB[](
 
 Ray makeRay(vec3 origin, vec3 dir)
 {
-	dir = normalize(dir);
 	return Ray(origin, dir, 1 / dir);
 }
 
@@ -90,9 +89,9 @@ float rand(vec2 co)
 
 vec3 randomSpherePoint()
 {
-	float s = rand() * 3.1415926 * 2.0;
-	float t = rand() * 2.0 - 1.0;
-	return vec3(vec2(sin(s), cos(s)) * sqrt(1.0 - t * t), t);
+	float s = rand() * 3.1415926 * 2;
+	float t = rand() * 2 - 1;
+	return vec3(vec2(sin(s), cos(s)) * sqrt(1 - t * t), t);
 }
 
 vec3 randomHemispherePoint(vec3 dir)
@@ -186,12 +185,10 @@ Intersection intersectScene(Ray ray)
 
 vec3 calcLighting(vec3 pos, vec3 normal)
 {
-	const vec3 SUN_DIR = vec3(1,1,1);
-	
-	vec3 dcol = vec3(0);
+	const vec3 SUN_DIR = normalize(vec3(1,1,1));
 	
 	Intersection shadowInter = intersectScene(makeRay(pos + normal * EPSILON, SUN_DIR));
-	dcol += shadowInter.hit ? 0 : 1;
+	vec3 dcol = vec3(shadowInter.hit ? 0 : 1);
 	
 	return dcol;
 }
@@ -252,7 +249,7 @@ void main()
 	for(int i = 0; i < SAMPLES_PER_PIXEL; i++)
 	{
 		vec2 uv = (coord + vec2(rand(), rand()) * 2 - 1) / framebufferSize;
-		vec3 dir = mix(mix(ray00.xyz, ray01.xyz, uv.y), mix(ray10.xyz, ray11.xyz, uv.y), uv.x);
+		vec3 dir = normalize(mix(mix(ray00.xyz, ray01.xyz, uv.y), mix(ray10.xyz, ray11.xyz, uv.y), uv.x));
 	
 		color += calculateColor(makeRay(camPos, dir));
 	}
