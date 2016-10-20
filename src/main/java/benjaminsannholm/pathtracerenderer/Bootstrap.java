@@ -21,6 +21,7 @@ import static org.lwjgl.glfw.GLFW.glfwInit;
 import static org.lwjgl.glfw.GLFW.glfwMakeContextCurrent;
 import static org.lwjgl.glfw.GLFW.glfwPollEvents;
 import static org.lwjgl.glfw.GLFW.glfwSetErrorCallback;
+import static org.lwjgl.glfw.GLFW.glfwSetFramebufferSizeCallback;
 import static org.lwjgl.glfw.GLFW.glfwSetKeyCallback;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowPos;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowShouldClose;
@@ -151,7 +152,7 @@ public class Bootstrap
 
         glfwMakeContextCurrent(window);
         GL.createCapabilities(true);
-        glfwSwapInterval(1);
+        glfwSwapInterval(0);
 
         glfwSetKeyCallback(window, (window, key, scancode, action, mods) ->
         {
@@ -159,7 +160,7 @@ public class Bootstrap
                 glfwSetWindowShouldClose(window, true);
         });
 
-        GLFW.glfwSetFramebufferSizeCallback(window, this::onResize);
+        glfwSetFramebufferSizeCallback(window, this::onResize);
         
         glfwShowWindow(window);
     }
@@ -171,10 +172,11 @@ public class Bootstrap
 
         if (mainFrameBufferTex != null)
             mainFrameBufferTex.dispose();
-        mainFrameBufferTex = Texture2D.builder(this.width, this.height)
-                .format(Format.RGBA32F)
-                .build();
+        mainFrameBufferTex = null;
+        
         numFrames = 0;
+        
+        System.out.println("re");
     }
     
     private void loop()
@@ -221,12 +223,19 @@ public class Bootstrap
                 Quaternion.IDENTITY,
                 Vector3.ONE);
         
-        projectionMatrix = Matrix4.createPerspectiveProjection(0.1F, 1000, 90, (float) mainFrameBufferTex.getWidth() / mainFrameBufferTex.getHeight());
+        projectionMatrix = Matrix4.createPerspectiveProjection(0.1F, 1000, 90, (float)width / height);
         viewMatrix = cameraTransform.getRot().toMatrix4();
     }
     
     private void render()
     {
+        if (mainFrameBufferTex == null)
+        {
+            mainFrameBufferTex = Texture2D.builder(width, height)
+                    .format(Format.RGBA32F)
+                    .build();
+        }
+
         numFrames++;
         
         final Matrix4 invViewProjMatrix = projectionMatrix.multiply(viewMatrix).invert();
@@ -237,7 +246,7 @@ public class Bootstrap
         program1.setUniform("framebuffer", 0);
         program1.setUniform("framebufferSize", Vector2.create(mainFrameBufferTex.getWidth(), mainFrameBufferTex.getHeight()));
         program1.setUniform("randInit", XSRandom.get().nextFloat());
-        program1.setUniform("time", (float) timeElapsed);
+        program1.setUniform("time", (float)timeElapsed);
         program1.setUniform("numRuns", numFrames);
         program1.setUniform("invViewProjMatrix", invViewProjMatrix);
         program1.setUniform("camPos", cameraTransform.getPos());
