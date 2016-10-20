@@ -50,6 +50,7 @@ import benjaminsannholm.util.math.Quaternion;
 import benjaminsannholm.util.math.Transform;
 import benjaminsannholm.util.math.Vector2;
 import benjaminsannholm.util.math.Vector3;
+import benjaminsannholm.util.math.XSRandom;
 import benjaminsannholm.util.opengl.GLAPI;
 import benjaminsannholm.util.opengl.geometry.FullscreenQuadRenderer;
 import benjaminsannholm.util.opengl.shader.ShaderManager;
@@ -235,7 +236,9 @@ public class Bootstrap
         final ShaderProgram program1 = shaderManager.getProgram("compute_draw");
         program1.setUniform("framebuffer", 0);
         program1.setUniform("framebufferSize", Vector2.create(mainFrameBufferTex.getWidth(), mainFrameBufferTex.getHeight()));
+        program1.setUniform("randInit", XSRandom.get().nextFloat());
         program1.setUniform("time", (float) timeElapsed);
+        program1.setUniform("numRuns", numFrames);
         program1.setUniform("invViewProjMatrix", invViewProjMatrix);
         program1.setUniform("camPos", cameraTransform.getPos());
         program1.use();
@@ -253,13 +256,8 @@ public class Bootstrap
         GLAPI.setViewport(0, 0, width, height);
 
         mainFrameBufferTex.bind(0);
-
-        /*final ShaderProgram program2 = shaderManager.getProgram("fullscreen_texture_average");
-        program2.setUniform("tex", 0);
-        program2.setUniform("divisor", (float) numFrames);
-        program2.use();*/
         
-        final ShaderProgram program2 = shaderManager.getProgram("fullscreen_texture");
+        final ShaderProgram program2 = shaderManager.getProgram("fullscreen_texture_tonemap");
         program2.setUniform("tex", 0);
         program2.use();
 

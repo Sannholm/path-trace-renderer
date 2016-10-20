@@ -40,7 +40,7 @@ AABB makeAABB(vec3 center, vec3 size, Material material);
 layout(local_size_x = 16, local_size_y = 16) in;
 
 const float EPSILON = 0.0001;
-const int SAMPLES_PER_PIXEL = 1000;
+const int SAMPLES_PER_PIXEL = 100;
 const int NUM_BOUNCES = 5;
 
 const vec3 SUN_DIR = normalize(vec3(1,1,1));
@@ -48,7 +48,9 @@ const vec3 SUN_DIR = normalize(vec3(1,1,1));
 layout(rgba32f) uniform image2D framebuffer;
 uniform vec2 framebufferSize;
 
+uniform float randInit;
 uniform float time;
+uniform int numRuns;
 
 uniform vec3 camPos;
 uniform mat4 invViewProjMatrix;
@@ -81,11 +83,11 @@ AABB makeAABB(vec3 center, vec3 size, Material material)
 	return AABB(center - size / 2, center + size / 2, material);
 }
 
-float seed = time;
+float seed = randInit;
 
 float rand()
 {
-	seed += time;
+	seed += randInit;
 	return fract(sin(seed) * 43758.5453123);
 }
 
@@ -230,7 +232,7 @@ vec3 calculateColor(Ray startRay)
 			vec3 dcol = calcLighting(inter.pos, inter.normal, ray.dir, inter.material);
 			
 			fcol *= inter.material.albedo;
-			//if (i == 1)
+			//if (i == 0)
 			tcol += fcol * dcol * inter.material.roughness;
 			
 			ray = makeRay(inter.pos, calcBRDFRay(inter.pos, inter.normal, ray.dir, inter.material));
@@ -260,17 +262,23 @@ void main()
 	vec4 ray11 = vec4(1, 1, 0, 1) * invViewProjMatrix;
 	ray11 /= ray11.w;
 	
+	vec2 framebufferSizeInv = 1 / framebufferSize;
+	
 	vec3 color = vec3(0);
 	for(int i = 0; i < SAMPLES_PER_PIXEL; i++)
 	{
-		vec2 uv = (coord + vec2(rand(), rand()) * 2 - 1) / framebufferSize;
+		vec2 uv = (coord + vec2(rand(), rand())) * framebufferSizeInv;
 		vec3 dir = normalize(mix(mix(ray00.xyz, ray01.xyz, uv.y), mix(ray10.xyz, ray11.xyz, uv.y), uv.x));
 	
 		color += calculateColor(makeRay(camPos, dir));
 	}
-	color *= 1.0 / SAMPLES_PER_PIXEL;
+	//color *= 1.0 / SAMPLES_PER_PIXEL;
 	
- 	imageStore(framebuffer, coord, vec4(color, 1));
+	vec3 prev = imageLoad(framebuffer, coord).rgb;
+	vec3 newAvg = mix(prev, color, 1.0 / (SAMPLES_PER_PIXEL * numRuns));
+	
+ 	imageStore(framebuffer, coord, vec4(newAvg, 1));
+ 	//imageStore(framebuffer, coord, vec4(color, 1));
 	
 	//vec3 color = calculateColor(makeRay(camPos, dir));
  	//imageStore(framebuffer, coord, vec4(imageLoad(framebuffer, coord).rgb + color, 1));
