@@ -45,6 +45,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Stopwatch;
 
+import benjaminsannholm.util.math.FastMath;
 import benjaminsannholm.util.math.MathUtils;
 import benjaminsannholm.util.math.Matrix4;
 import benjaminsannholm.util.math.Quaternion;
@@ -103,7 +104,7 @@ public class Bootstrap
     private Matrix4 projectionMatrix;
     private Matrix4 viewMatrix;
     
-    private int numFrames;
+    private int numRuns;
     
     public void run()
     {
@@ -142,7 +143,7 @@ public class Bootstrap
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_TRUE);
-        
+
         window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Renderer", NULL, NULL);
         if (window == NULL)
             throw new RuntimeException("Failed to create the GLFW window");
@@ -152,16 +153,28 @@ public class Bootstrap
 
         glfwMakeContextCurrent(window);
         GL.createCapabilities(true);
-        glfwSwapInterval(0);
+        glfwSwapInterval(1);
 
         glfwSetKeyCallback(window, (window, key, scancode, action, mods) ->
         {
-            if (key == GLFW_KEY_ESCAPE && action == GLFW_RELEASE)
-                glfwSetWindowShouldClose(window, true);
+            if (action == GLFW_RELEASE)
+            {
+                switch (key)
+                {
+                    case GLFW_KEY_ESCAPE:
+                        glfwSetWindowShouldClose(window, true);
+                        break;
+                    case GLFW.GLFW_KEY_R:
+                        resetFramebuffers();
+                        break;
+                    default:
+                        break;
+                }
+            }
         });
 
         glfwSetFramebufferSizeCallback(window, this::onResize);
-        
+
         glfwShowWindow(window);
     }
     
@@ -170,15 +183,18 @@ public class Bootstrap
         this.width = Math.max(1, width);
         this.height = Math.max(1, height);
 
+        resetFramebuffers();
+    }
+    
+    private void resetFramebuffers()
+    {
         if (mainFrameBufferTex != null)
             mainFrameBufferTex.dispose();
         mainFrameBufferTex = null;
         
-        numFrames = 0;
-        
-        System.out.println("re");
+        numRuns = 0;
     }
-    
+
     private void loop()
     {
         prevFrameTime = glfwGetTime();
@@ -235,39 +251,45 @@ public class Bootstrap
                     .format(Format.RGBA32F)
                     .build();
         }
-
-        numFrames++;
         
-        final Matrix4 invViewProjMatrix = projectionMatrix.multiply(viewMatrix).invert();
+        if (numRuns < 100)
+        {
+            numRuns++;
 
-        mainFrameBufferTex.bindImage(0, Access.WRITE, Format.RGBA32F);
+            final Matrix4 invViewProjMatrix = projectionMatrix.multiply(viewMatrix).invert();
 
-        final ShaderProgram program1 = shaderManager.getProgram("compute_draw");
-        program1.setUniform("framebuffer", 0);
-        program1.setUniform("framebufferSize", Vector2.create(mainFrameBufferTex.getWidth(), mainFrameBufferTex.getHeight()));
-        program1.setUniform("randInit", XSRandom.get().nextFloat());
-        program1.setUniform("time", (float)timeElapsed);
-        program1.setUniform("numRuns", numFrames);
-        program1.setUniform("invViewProjMatrix", invViewProjMatrix);
-        program1.setUniform("camPos", cameraTransform.getPos());
-        program1.use();
+            mainFrameBufferTex.bindImage(0, Access.WRITE, Format.RGBA32F);
 
-        final Stopwatch sw = Stopwatch.createStarted();
+            final ShaderProgram program1 = shaderManager.getProgram("compute_draw");
+            program1.setUniform("framebuffer", 0);
+            program1.setUniform("framebufferSize", Vector2.create(mainFrameBufferTex.getWidth(), mainFrameBufferTex.getHeight()));
+            program1.setUniform("randInit", XSRandom.get().nextFloat());
+            program1.setUniform("time", (float)timeElapsed);
+            program1.setUniform("numRuns", numRuns);
+            program1.setUniform("invViewProjMatrix", invViewProjMatrix);
+            program1.setUniform("camPos", cameraTransform.getPos());
+            program1.use();
 
-        final int WORKGROUP_SIZE = 16;
-        GLAPI.dispatchCompute(MathUtils.nextPoT(mainFrameBufferTex.getWidth() / WORKGROUP_SIZE),
-                MathUtils.nextPoT(mainFrameBufferTex.getHeight() / WORKGROUP_SIZE), 1);
-        GLAPI.memoryBarrier(GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+            final int WORKGROUP_SIZE = 16;
+            final int numGroupsX = MathUtils.nextPoT(FastMath.fastCeil((float)mainFrameBufferTex.getWidth() / WORKGROUP_SIZE));
+            final int numGroupsY = MathUtils.nextPoT(FastMath.fastCeil((float)mainFrameBufferTex.getHeight() / WORKGROUP_SIZE));
 
-        System.out.println("Compute: " + sw.elapsed(TimeUnit.MICROSECONDS) + " us");
+            final Stopwatch sw = Stopwatch.createStarted();
+            GLAPI.dispatchCompute(numGroupsX, numGroupsY, 1);
+            System.out.println("Compute: " + sw.elapsed(TimeUnit.MICROSECONDS) + " us");
+
+            GLAPI.memoryBarrier(GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        }
 
         FrameBuffer.unBind();
         GLAPI.setViewport(0, 0, width, height);
 
         mainFrameBufferTex.bind(0);
         
-        final ShaderProgram program2 = shaderManager.getProgram("fullscreen_texture_tonemap");
+        final ShaderProgram program2 = shaderManager.getProgram("post_composite");
         program2.setUniform("tex", 0);
+        //program2.setUniform("exposure", FastMath.sin((float)timeElapsed * 2) * 0.5F + 0.5F);
+        program2.setUniform("exposure", 1F);
         program2.use();
 
         FullscreenQuadRenderer.render();
