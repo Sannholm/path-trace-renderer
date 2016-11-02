@@ -1,3 +1,5 @@
+import org.gradle.internal.os.OperatingSystem
+
 buildscript {
     repositories {
         jcenter()
@@ -10,6 +12,20 @@ buildscript {
 plugins {
 	id 'java'
 	id 'com.github.johnrengelman.shadow' version '1.2.3'
+}
+
+project.ext.lwjglVersion = '3.1.0'
+
+switch (OperatingSystem.current()) {
+	case OperatingSystem.WINDOWS:
+		project.ext.lwjglNatives = 'natives-windows'
+		break
+	case OperatingSystem.LINUX:
+		project.ext.lwjglNatives = 'natives-linux'
+		break
+	case OperatingSystem.MAC_OS:
+		project.ext.lwjglNatives = 'natives-macos'
+		break
 }
 
 repositories {
@@ -26,8 +42,15 @@ dependencies {
     compile 'net.sf.trove4j:trove4j:3.0.3'
     compile 'com.google.code.gson:gson:2.7'
     
-	compile 'org.lwjgl:lwjgl:3.0.0'
-	compile 'org.lwjgl:lwjgl-platform:3.0.0:natives-windows'
+	// LWJGL
+	compile "org.lwjgl:lwjgl:${lwjglVersion}"
+	compile "org.lwjgl:lwjgl-glfw:${lwjglVersion}"
+	compile "org.lwjgl:lwjgl-jemalloc:${lwjglVersion}"
+	compile "org.lwjgl:lwjgl-opengl:${lwjglVersion}"
+	// LWJGL natives
+	runtime "org.lwjgl:lwjgl:${lwjglVersion}:${lwjglNatives}"
+	runtime "org.lwjgl:lwjgl-glfw:${lwjglVersion}:${lwjglNatives}"
+	runtime "org.lwjgl:lwjgl-jemalloc:${lwjglVersion}:${lwjglNatives}"
 	
     testCompile 'junit:junit:4.12'
 }

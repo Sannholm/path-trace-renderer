@@ -118,7 +118,7 @@ vec3 randomHemispherePointCosineWeighted(vec3 dir)
 	float theta = 2 * M_PI * u2;
 	vec3 v = vec3(vec2(sin(theta), cos(theta)) * r, sqrt(u1));
 
-	return v * sign(dot(v, dir));
+	return v * sign(dot(v, dir)); // TODO: Verify that re-orientation around normal works
 }
 
 Intersection intersectSphere(Sphere s, Ray r)

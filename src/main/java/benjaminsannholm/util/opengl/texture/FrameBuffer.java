@@ -1,11 +1,13 @@
 package benjaminsannholm.util.opengl.texture;
 
+import static org.lwjgl.system.MemoryStack.stackPush;
+
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL30;
+import org.lwjgl.system.MemoryStack;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -34,16 +36,19 @@ public class FrameBuffer extends GraphicsObject
         setHandle(GLAPI.genFramebuffer());
         bind();
         
-        final IntBuffer drawBuffers = BufferUtils.createIntBuffer(colorAttachments.size());
-        for (int i = 0; i < colorAttachments.size(); i++)
+        try (MemoryStack stack = stackPush())
         {
-            final int bufferId = GL30.GL_COLOR_ATTACHMENT0 + i;
-            final Texture texture = colorAttachments.get(i);
-            GLAPI.setFramebufferAttachment(bufferId, texture.getType().getTarget(), texture.getHandle());
-            drawBuffers.put(bufferId);
+            final IntBuffer drawBuffers = stack.mallocInt(colorAttachments.size());
+            for (int i = 0; i < colorAttachments.size(); i++)
+            {
+                final int bufferId = GL30.GL_COLOR_ATTACHMENT0 + i;
+                final Texture texture = colorAttachments.get(i);
+                GLAPI.setFramebufferAttachment(bufferId, texture.getType().getTarget(), texture.getHandle());
+                drawBuffers.put(bufferId);
+            }
+            drawBuffers.rewind();
+            GLAPI.setDrawBuffers(drawBuffers);
         }
-        drawBuffers.rewind();
-        GLAPI.setDrawBuffers(drawBuffers);
         
         if (depthTexture != null)
             GLAPI.setFramebufferAttachment(GL30.GL_DEPTH_ATTACHMENT, depthTexture.getType().getTarget(), depthTexture.getHandle());
@@ -61,16 +66,16 @@ public class FrameBuffer extends GraphicsObject
             
             switch (status)
             {
-            case GL30.GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT:
-                throw new RuntimeException("GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT");
-            case GL30.GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT:
-                throw new RuntimeException("GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT");
-            case GL30.GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER:
-                throw new RuntimeException("GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER");
-            case GL30.GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER:
-                throw new RuntimeException("GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER");
-            default:
-                throw new RuntimeException("Unknown framebuffer status: " + status);
+                case GL30.GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT:
+                    throw new RuntimeException("GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT");
+                case GL30.GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT:
+                    throw new RuntimeException("GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT");
+                case GL30.GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER:
+                    throw new RuntimeException("GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER");
+                case GL30.GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER:
+                    throw new RuntimeException("GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER");
+                default:
+                    throw new RuntimeException("Unknown framebuffer status: " + status);
             }
         }
     }

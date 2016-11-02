@@ -16,8 +16,8 @@ import java.util.Map;
 import javax.imageio.ImageIO;
 
 import org.apache.commons.io.FilenameUtils;
-import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL12;
+import org.lwjgl.system.MemoryUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,8 +41,6 @@ public class TextureManager
 
     private final Map<String, Texture> textures = new THashMap<>();
 
-    private ByteBuffer dataBuffer;
-
     public TextureManager(ResourceLocator textureLocator)
     {
         this.textureLocator = Preconditions.checkNotNull(textureLocator, "textureLocator");
@@ -53,15 +51,6 @@ public class TextureManager
         for (Texture texture : textures.values())
             texture.dispose();
         textures.clear();
-    }
-
-    private ByteBuffer getDataBuffer(int size)
-    {
-        if (dataBuffer == null || size > dataBuffer.capacity())
-            dataBuffer = BufferUtils.createByteBuffer(size);
-
-        dataBuffer.clear();
-        return dataBuffer;
     }
 
     public Texture getTexture(String path)
@@ -82,39 +71,46 @@ public class TextureManager
                 rawImage.flush();
                 rawImage = null;
                 
-                final int[] data = ((DataBufferInt) formattedImage.getRaster().getDataBuffer()).getData();
+                final int[] data = ((DataBufferInt)formattedImage.getRaster().getDataBuffer()).getData();
                 formattedImage.flush();
                 formattedImage = null;
 
-                final ByteBuffer buffer = getDataBuffer(data.length * 4);
-                buffer.asIntBuffer().put(data);
-                buffer.flip();
-
-                final TextureConfig config = getTextureConfig(FilenameUtils.removeExtension(path));
-                
-                Texture.Builder<?, ?> builder = null;
-                switch (config.type)
+                final ByteBuffer buffer = MemoryUtil.memAlloc(data.length * 4);
+                try
                 {
-                case "2d":
-                    builder = Texture2D.builder(width, height);
-                    break;
-                case "3d":
-                    builder = Texture3D.builder(width, height, height / width);
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unsupported texture type: " + config.type);
+                    buffer.asIntBuffer().put(data);
+                    buffer.flip();
+
+                    final TextureConfig config = getTextureConfig(FilenameUtils.removeExtension(path));
+
+                    Texture.Builder<?, ?> builder = null;
+                    switch (config.type)
+                    {
+                        case "2d":
+                            builder = Texture2D.builder(width, height);
+                            break;
+                        case "3d":
+                            builder = Texture3D.builder(width, height, height / width);
+                            break;
+                        default:
+                            throw new IllegalArgumentException("Unsupported texture type: " + config.type);
+                    }
+
+                    builder.format(config.sRGB ? Format.SRGB8_ALPHA8 : Format.RGBA8)
+                            .magFilter(config.magBlur ? MagnificationFilter.LINEAR : MagnificationFilter.NEAREST)
+                            .minFilter(config.mipmap ? (config.minBlur ? MinificationFilter.LINEAR_MIPMAP : MinificationFilter.NEAREST_MIPMAP) : (config.minBlur ? MinificationFilter.LINEAR : MinificationFilter.NEAREST));
+
+                    texture = builder.build();
+                    texture.bind(0);
+                    texture.upload(buffer, GL12.GL_BGRA, GL12.GL_UNSIGNED_INT_8_8_8_8_REV);
+
+                    if (config.mipmap)
+                        GLAPI.generateMipmaps(texture.getType().getTarget());
                 }
-                
-                builder.format(config.sRGB ? Format.SRGB8_ALPHA8 : Format.RGBA8)
-                        .magFilter(config.magBlur ? MagnificationFilter.LINEAR : MagnificationFilter.NEAREST)
-                        .minFilter(config.mipmap ? (config.minBlur ? MinificationFilter.LINEAR_MIPMAP : MinificationFilter.NEAREST_MIPMAP) : (config.minBlur ? MinificationFilter.LINEAR : MinificationFilter.NEAREST));
-
-                texture = builder.build();
-                texture.bind(0);
-                texture.upload(buffer, GL12.GL_BGRA, GL12.GL_UNSIGNED_INT_8_8_8_8_REV);
-
-                if (config.mipmap)
-                    GLAPI.generateMipmaps(texture.getType().getTarget());
+                finally
+                {
+                    MemoryUtil.memFree(buffer);
+                }
             }
             catch (IOException e)
             {
