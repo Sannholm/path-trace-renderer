@@ -66,24 +66,24 @@ public final class GLAPI
     {
         switch (error)
         {
-        case GL11.GL_INVALID_ENUM:
-            return "Invalid enum";
-        case GL11.GL_INVALID_VALUE:
-            return "Invalid value";
-        case GL11.GL_INVALID_OPERATION:
-            return "Invalid operation";
-        case GL11.GL_STACK_OVERFLOW:
-            return "Stack overflow";
-        case GL11.GL_STACK_UNDERFLOW:
-            return "Stack underflow";
-        case GL11.GL_OUT_OF_MEMORY:
-            return "Out of memory";
-        case GL30.GL_INVALID_FRAMEBUFFER_OPERATION:
-            return "Invalid framebuffer operation";
-        case GL45.GL_CONTEXT_LOST:
-            return "Context lost";
-        default:
-            throw new IllegalArgumentException("Unknown error code " + error);
+            case GL11.GL_INVALID_ENUM:
+                return "Invalid enum";
+            case GL11.GL_INVALID_VALUE:
+                return "Invalid value";
+            case GL11.GL_INVALID_OPERATION:
+                return "Invalid operation";
+            case GL11.GL_STACK_OVERFLOW:
+                return "Stack overflow";
+            case GL11.GL_STACK_UNDERFLOW:
+                return "Stack underflow";
+            case GL11.GL_OUT_OF_MEMORY:
+                return "Out of memory";
+            case GL30.GL_INVALID_FRAMEBUFFER_OPERATION:
+                return "Invalid framebuffer operation";
+            case GL45.GL_CONTEXT_LOST:
+                return "Context lost";
+            default:
+                throw new IllegalArgumentException("Unknown error code " + error);
         }
     }
     
@@ -185,14 +185,14 @@ public final class GLAPI
     {
         switch (target)
         {
-        case GL11.GL_TEXTURE_2D:
-            GL11.glTexImage2D(GL11.GL_TEXTURE_2D, level, internalFormat, width, height, 0, format, type, pixels);
-            break;
-        case GL12.GL_TEXTURE_3D:
-            GL12.glTexImage3D(GL12.GL_TEXTURE_3D, level, internalFormat, width, height, depth, 0, format, type, pixels);
-            break;
-        default:
-            throw new IllegalArgumentException("Unsupported texture target");
+            case GL11.GL_TEXTURE_2D:
+                GL11.glTexImage2D(GL11.GL_TEXTURE_2D, level, internalFormat, width, height, 0, format, type, pixels);
+                break;
+            case GL12.GL_TEXTURE_3D:
+                GL12.glTexImage3D(GL12.GL_TEXTURE_3D, level, internalFormat, width, height, depth, 0, format, type, pixels);
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported texture target");
         }
         checkError();
     }
@@ -207,14 +207,14 @@ public final class GLAPI
     {
         switch (target)
         {
-        case GL11.GL_TEXTURE_2D:
-            GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, level, x, y, width, height, format, type, buffer);
-            break;
-        case GL12.GL_TEXTURE_3D:
-            GL12.glTexSubImage3D(GL12.GL_TEXTURE_3D, level, x, y, z, width, height, depth, format, type, buffer);
-            break;
-        default:
-            throw new IllegalArgumentException("Unsupported texture target");
+            case GL11.GL_TEXTURE_2D:
+                GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, level, x, y, width, height, format, type, buffer);
+                break;
+            case GL12.GL_TEXTURE_3D:
+                GL12.glTexSubImage3D(GL12.GL_TEXTURE_3D, level, x, y, z, width, height, depth, format, type, buffer);
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported texture target");
         }
         checkError();
     }
@@ -235,14 +235,14 @@ public final class GLAPI
     {
         switch (target)
         {
-        case GL11.GL_TEXTURE_2D:
-            GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, attachment, GL11.GL_TEXTURE_2D, texture, level);
-            break;
-        case GL12.GL_TEXTURE_3D:
-            GL30.glFramebufferTexture3D(GL30.GL_FRAMEBUFFER, attachment, GL12.GL_TEXTURE_3D, texture, level, layer);
-            break;
-        default:
-            throw new IllegalArgumentException("Unsupported texture target");
+            case GL11.GL_TEXTURE_2D:
+                GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, attachment, GL11.GL_TEXTURE_2D, texture, level);
+                break;
+            case GL12.GL_TEXTURE_3D:
+                GL30.glFramebufferTexture3D(GL30.GL_FRAMEBUFFER, attachment, GL12.GL_TEXTURE_3D, texture, level, layer);
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported texture target");
         }
         checkError();
     }
@@ -398,6 +398,12 @@ public final class GLAPI
     public static void setUniform3f(int location, float value1, float value2, float value3)
     {
         GL20.glUniform3f(location, value1, value2, value3);
+        checkError();
+    }
+    
+    public static void setUniform4f(int location, float value1, float value2, float value3, float value4)
+    {
+        GL20.glUniform4f(location, value1, value2, value3, value4);
         checkError();
     }
     
