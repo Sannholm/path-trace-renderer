@@ -33,6 +33,7 @@ import static org.lwjgl.glfw.GLFW.glfwWindowHint;
 import static org.lwjgl.glfw.GLFW.glfwWindowShouldClose;
 import static org.lwjgl.system.MemoryUtil.NULL;
 
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import org.lwjgl.glfw.GLFW;
@@ -52,7 +53,6 @@ import benjaminsannholm.util.math.Quaternion;
 import benjaminsannholm.util.math.Transform;
 import benjaminsannholm.util.math.Vector2;
 import benjaminsannholm.util.math.Vector3;
-import benjaminsannholm.util.math.XSRandom;
 import benjaminsannholm.util.opengl.GLAPI;
 import benjaminsannholm.util.opengl.geometry.FullscreenQuadRenderer;
 import benjaminsannholm.util.opengl.shader.ShaderManager;
@@ -263,7 +263,7 @@ public class Bootstrap
             final ShaderProgram program1 = shaderManager.getProgram("compute_draw");
             program1.setUniform("framebuffer", 0);
             program1.setUniform("framebufferSize", Vector2.create(mainFrameBufferTex.getWidth(), mainFrameBufferTex.getHeight()));
-            program1.setUniform("randInit", XSRandom.get().nextFloat());
+            program1.setUniform("randInit", ThreadLocalRandom.current().nextFloat());
             program1.setUniform("time", (float)timeElapsed);
             program1.setUniform("numRuns", numRuns);
             program1.setUniform("invViewProjMatrix", invViewProjMatrix);
