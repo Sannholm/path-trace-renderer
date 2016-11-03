@@ -276,7 +276,7 @@ public class Bootstrap
 
             final Stopwatch sw = Stopwatch.createStarted();
             GLAPI.dispatchCompute(numGroupsX, numGroupsY, 1);
-            System.out.println("Compute: " + sw.elapsed(TimeUnit.MICROSECONDS) + " us");
+            System.out.println("Compute: " + sw.elapsed(TimeUnit.MICROSECONDS) + " us (" + numRuns + ")");
 
             GLAPI.memoryBarrier(GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
         }
