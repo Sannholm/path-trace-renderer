@@ -5,6 +5,8 @@ import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MAJOR;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MINOR;
 import static org.lwjgl.glfw.GLFW.GLFW_FALSE;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_R;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_T;
 import static org.lwjgl.glfw.GLFW.GLFW_OPENGL_PROFILE;
 import static org.lwjgl.glfw.GLFW.GLFW_RELEASE;
 import static org.lwjgl.glfw.GLFW.GLFW_RESIZABLE;
@@ -105,7 +107,8 @@ public class Bootstrap
     private Matrix4 projectionMatrix;
     private Matrix4 viewMatrix;
 
-    private int numRuns;
+    private int numPasses;
+    private long totalComputeTime;
 
     public void run()
     {
@@ -165,8 +168,12 @@ public class Bootstrap
                     case GLFW_KEY_ESCAPE:
                         glfwSetWindowShouldClose(window, true);
                         break;
-                    case GLFW.GLFW_KEY_R:
-                        resetFramebuffers();
+                    case GLFW_KEY_R:
+                        resetRender();
+                        shaderManager.clearPrograms();
+                        break;
+                    case GLFW_KEY_T:
+                        resetRender();
                         break;
                     default:
                         break;
@@ -184,16 +191,17 @@ public class Bootstrap
         this.width = Math.max(1, width);
         this.height = Math.max(1, height);
         
-        resetFramebuffers();
+        resetRender();
     }
 
-    private void resetFramebuffers()
+    private void resetRender()
     {
         if (mainFrameBufferTex != null)
             mainFrameBufferTex.dispose();
         mainFrameBufferTex = null;
 
-        numRuns = 0;
+        numPasses = 0;
+        totalComputeTime = 0;
     }
     
     private void loop()
@@ -225,7 +233,6 @@ public class Bootstrap
     {
         if (timeElapsed % 1 < 0.05)
         {
-            shaderManager.clearPrograms();
             System.out.println(fps);
         }
 
@@ -242,6 +249,33 @@ public class Bootstrap
         projectionMatrix = Matrix4.createPerspectiveProjection(0.1F, 1000, 90, (float)width / height);
         viewMatrix = cameraTransform.getRot().toMatrix4();
     }
+    
+    /*private static final int MAX_STRATIFIED_DIMENSIONS = 5;
+    private static final int SAMPLES_PER_PIXEL = 100;
+    private final int[] stratifiedGridIndices = new int[MAX_STRATIFIED_DIMENSIONS * SAMPLES_PER_PIXEL];
+    
+    private int[] generateStratifiedGridIndices()
+    {
+        for (int i = 0; i < MAX_STRATIFIED_DIMENSIONS; i++)
+        {
+            final int[] indices = new int[SAMPLES_PER_PIXEL];
+    
+            for (int j = 0; j < SAMPLES_PER_PIXEL; j++)
+                indices[j] = j;
+
+            for (int k = SAMPLES_PER_PIXEL; k > 1; k--)
+            {
+                final int rand = RAND.nextInt(k);
+                final int tmp = indices[rand];
+                indices[rand] = indices[k - 1];
+                indices[k - 1] = tmp;
+            }
+    
+            System.arraycopy(indices, 0, stratifiedGridIndices, i * SAMPLES_PER_PIXEL, SAMPLES_PER_PIXEL);
+        }
+    
+        return stratifiedGridIndices;
+    }*/
 
     private void render()
     {
@@ -252,10 +286,11 @@ public class Bootstrap
                     .build();
         }
 
-        if (numRuns < 100)
+        final int MAX_PASSES = 10;
+        if (numPasses < MAX_PASSES)
         {
-            numRuns++;
-            
+            numPasses++;
+
             final Matrix4 invViewProjMatrix = projectionMatrix.multiply(viewMatrix).invert();
             
             mainFrameBufferTex.bindImage(0, Access.WRITE, Format.RGBA32F);
@@ -265,34 +300,41 @@ public class Bootstrap
             program1.setUniform("framebufferSize", Vector2.create(mainFrameBufferTex.getWidth(), mainFrameBufferTex.getHeight()));
             program1.setUniform("randInit", Vector4.create(RAND.nextFloat(), RAND.nextFloat(), RAND.nextFloat(), RAND.nextFloat()));
             program1.setUniform("time", (float)timeElapsed);
-            program1.setUniform("numRuns", numRuns);
+            program1.setUniform("numPasses", numPasses);
             program1.setUniform("invViewProjMatrix", invViewProjMatrix);
             program1.setUniform("camPos", cameraTransform.getPos());
+            //program1.setUniform("stratifiedGridIndices", generateStratifiedGridIndices());
             
             final int WORKGROUP_SIZE = 16;
             final int numGroupsX = MathUtils.nextPoT(FastMath.fastCeil((float)mainFrameBufferTex.getWidth() / WORKGROUP_SIZE));
             final int numGroupsY = MathUtils.nextPoT(FastMath.fastCeil((float)mainFrameBufferTex.getHeight() / WORKGROUP_SIZE));
             
             final Stopwatch sw = Stopwatch.createStarted();
+            
             program1.dispatchCompute(numGroupsX, numGroupsY, 1);
-            System.out.println("Compute: " + sw.elapsed(TimeUnit.MICROSECONDS) + " us (" + numRuns + ")");
+            
+            final long elapsed = sw.elapsed(TimeUnit.MICROSECONDS);
+            totalComputeTime += elapsed;
+            System.out.println("Compute: " + elapsed + " (" + totalComputeTime / numPasses + ") us (" + numPasses + ")");
             
             GLAPI.memoryBarrier(GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+            
+            
+            
+            FrameBuffer.unBind();
+            GLAPI.setViewport(0, 0, width, height);
+            
+            mainFrameBufferTex.bind(0);
+            
+            final ShaderProgram program2 = shaderManager.getProgram("post_composite");
+            program2.setUniform("tex", 0);
+            //program2.setUniform("exposure", FastMath.sin((float)timeElapsed * 2) * 0.5F + 0.5F);
+            program2.setUniform("exposure", 1F);
+            program2.use();
+            
+            FullscreenQuadRenderer.render();
+            
+            Texture2D.unbind(0);
         }
-        
-        FrameBuffer.unBind();
-        GLAPI.setViewport(0, 0, width, height);
-        
-        mainFrameBufferTex.bind(0);
-
-        final ShaderProgram program2 = shaderManager.getProgram("post_composite");
-        program2.setUniform("tex", 0);
-        //program2.setUniform("exposure", FastMath.sin((float)timeElapsed * 2) * 0.5F + 0.5F);
-        program2.setUniform("exposure", 1F);
-        program2.use();
-        
-        FullscreenQuadRenderer.render();
-        
-        Texture2D.unbind(0);
     }
 }

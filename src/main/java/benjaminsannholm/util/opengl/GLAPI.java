@@ -36,9 +36,7 @@ public final class GLAPI
 
             int error;
             while ((error = getError()) != GL11.GL_NO_ERROR)
-            {
                 errors.add(error);
-            }
 
             if (!errors.isEmpty())
             {
@@ -46,9 +44,7 @@ public final class GLAPI
                 message.append("########## GL ERROR ##########\n");
                 
                 for (TIntIterator it = errors.iterator(); it.hasNext();)
-                {
                     message.append(error + ": " + getErrorString(it.next()) + '\n');
-                }
                 
                 message.append(Throwables.getStackTraceAsString(new Throwable()));
 
@@ -383,33 +379,51 @@ public final class GLAPI
         return result;
     }
     
-    public static void setUniform1f(int location, float value)
+    public static void setUniform1f(int location, FloatBuffer buffer)
     {
-        GL20.glUniform1f(location, value);
+        GL20.glUniform1fv(location, buffer);
         checkError();
     }
     
-    public static void setUniform2f(int location, float value1, float value2)
+    public static void setUniform2f(int location, FloatBuffer buffer)
     {
-        GL20.glUniform2f(location, value1, value2);
+        GL20.glUniform2fv(location, buffer);
         checkError();
     }
     
-    public static void setUniform3f(int location, float value1, float value2, float value3)
+    public static void setUniform3f(int location, FloatBuffer buffer)
     {
-        GL20.glUniform3f(location, value1, value2, value3);
+        GL20.glUniform3fv(location, buffer);
         checkError();
     }
     
-    public static void setUniform4f(int location, float value1, float value2, float value3, float value4)
+    public static void setUniform4f(int location, FloatBuffer buffer)
     {
-        GL20.glUniform4f(location, value1, value2, value3, value4);
+        GL20.glUniform4fv(location, buffer);
         checkError();
     }
     
-    public static void setUniform1i(int location, int value)
+    public static void setUniform1i(int location, IntBuffer buffer)
     {
-        GL20.glUniform1i(location, value);
+        GL20.glUniform1iv(location, buffer);
+        checkError();
+    }
+    
+    public static void setUniform2i(int location, IntBuffer buffer)
+    {
+        GL20.glUniform2iv(location, buffer);
+        checkError();
+    }
+    
+    public static void setUniform3i(int location, IntBuffer buffer)
+    {
+        GL20.glUniform3iv(location, buffer);
+        checkError();
+    }
+    
+    public static void setUniform4i(int location, IntBuffer buffer)
+    {
+        GL20.glUniform4iv(location, buffer);
         checkError();
     }
     

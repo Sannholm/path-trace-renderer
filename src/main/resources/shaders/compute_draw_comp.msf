@@ -1,10 +1,13 @@
 #include random
 
+const uint BRDF_DIFFUSE = 0;
+const uint BRDF_SPECULAR = 1;
+
 struct Material
 {
+	uint brdfType;
 	vec3 radiance;
 	vec3 albedo;
-	float roughness;
 };
 
 struct Ray
@@ -44,44 +47,44 @@ layout(local_size_x = 16, local_size_y = 16) in;
 const float EPSILON = 0.0001;
 const float M_PI = 3.1415926535897932384626433832795;
 
+const Intersection NO_INTERSECTION = Intersection(false, vec3(0), vec3(0), Material(0, vec3(0), vec3(0)));
+
 const bool PROGRESSIVE = true;
 const int SAMPLES_PER_PIXEL = 100;
-const int SUB_PIXEL_GRID_SIZE = int(sqrt(SAMPLES_PER_PIXEL));
 const int NUM_BOUNCES = 5;
-
-const vec3 SUN_DIR = normalize(vec3(1,1,1));
 
 layout(rgba32f) uniform image2D framebuffer;
 uniform vec2 framebufferSize;
 
 uniform vec4 randInit;
 uniform float time;
-uniform int numRuns;
+uniform int numPasses;
 
 uniform vec3 camPos;
 uniform mat4 invViewProjMatrix;
 
-const uint pixelIndex = uint(gl_GlobalInvocationID.y * gl_WorkGroupSize.x * gl_NumWorkGroups.x + gl_GlobalInvocationID.x);
+uint pixelIndex;
+uint sampleIndex;
 
 Sphere spheres[] = Sphere[](
-	Sphere(vec3(0,-3,3), 2, Material(vec3(0), vec3(1), 1)),
-	Sphere(vec3(-3,3,0), 2, Material(vec3(0), vec3(1), 0)),
-	Sphere(vec3(3,3,0), 2, Material(vec3(0), vec3(1), 0))
+	Sphere(vec3(0,-3,3), 2, Material(BRDF_DIFFUSE, vec3(0), vec3(1))),
+	Sphere(vec3(-3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1))),
+	Sphere(vec3(3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1)))
 	
-	//Sphere(vec3(0,0,0), 2, Material(vec3(0), vec3(0.18), 0))
+	//Sphere(vec3(0,0,0), 2, Material(BRDF_DIFFUSE, vec3(0), vec3(0.18)))
 );
 
 AABB aabbs[] = AABB[](
-	makeAABB(vec3(0, -5, 0), vec3(10, 0.1, 10), Material(vec3(0), vec3(1), 1)), // Floor
-	makeAABB(vec3(0, 0, -5), vec3(10, 10, 0.1), Material(vec3(0), vec3(0,0,1), 1)), // Back
-	makeAABB(vec3(-5, 0, 0), vec3(0.1, 10, 10), Material(vec3(0), vec3(1,0,0), 1)), // Left
-	makeAABB(vec3(5, 0, 0), vec3(0.1, 10, 10), Material(vec3(0), vec3(0,1,0), 1)), // Right
-	makeAABB(vec3(0, 5, 0), vec3(10, 0.1, 10), Material(vec3(0), vec3(1), 1)), // Top
+	makeAABB(vec3(0, -5, 0), vec3(10, 0.1, 10), Material(BRDF_DIFFUSE, vec3(1), vec3(1))), // Floor
+	makeAABB(vec3(0, 0, -5), vec3(10, 10, 0.1), Material(BRDF_DIFFUSE, vec3(0), vec3(0,0,1))), // Back
+	makeAABB(vec3(-5, 0, 0), vec3(0.1, 10, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1,0,0))), // Left
+	makeAABB(vec3(5, 0, 0), vec3(0.1, 10, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(0,1,0))), // Right
+	makeAABB(vec3(0, 5, 0), vec3(10, 0.1, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1))), // Top
 	
-	makeAABB(vec3(3, -4, 0), vec3(3, 2, 10), Material(vec3(0), vec3(1), 1)),
-	makeAABB(vec3(0, 4.9, 0), vec3(1, 0.1, 1), Material(vec3(0.2,0.5,1) * 30, vec3(1), 1)) // Light
+	makeAABB(vec3(3, -4, 0), vec3(3, 2, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1))),
+	makeAABB(vec3(0, 4.9, 0), vec3(1, 0.1, 1), Material(BRDF_DIFFUSE, vec3(0.2,0.5,1) * 30, vec3(1))) // Light
 	
-	//makeAABB(vec3(0, 0, 0), vec3(0, 0, 0), Material(vec3(0), vec3(0), 1))
+	//makeAABB(vec3(0, 0, 0), vec3(0, 0, 0), Material(BRDF_DIFFUSE, vec3(0), vec3(0)))
 );
 
 Ray makeRay(vec3 origin, vec3 dir)
@@ -94,24 +97,59 @@ AABB makeAABB(vec3 center, vec3 size, Material material)
 	return AABB(center - size / 2, center + size / 2, material);
 }
 
-uvec4 state = 128 + uvec4(randInit * 2147483647) + pixelIndex;
+uvec4 state;
+
+void initRand()
+{
+	state = 128 + uvec4(randInit * 0xFFFFFFFFu) + pixelIndex;
+}
 
 float rand()
 {
 	return randomTausLCG(state);
 }
 
-vec3 randomSpherePoint()
+//const bool STRATIFIED_SAMPLING = true;
+const int STRATIFIED_GRID_SIZE = int(sqrt(SAMPLES_PER_PIXEL));
+/*const int MAX_STRATIFIED_DIMENSIONS = 5;
+uniform int stratifiedGridIndices[MAX_STRATIFIED_DIMENSIONS * SAMPLES_PER_PIXEL];
+uint stratifiedGridIndexOffset;
+int stratifiedGridDimension;
+
+vec2 randomStratifiedOffset()
 {
-	float s = rand() * M_PI * 2;
-	float t = rand() * 2 - 1;
-	return vec3(vec2(sin(s), cos(s)) * sqrt(1 - t * t), t);
+	if (STRATIFIED_SAMPLING && stratifiedGridDimension < MAX_STRATIFIED_DIMENSIONS)
+	{
+		uint i = (stratifiedGridIndices[stratifiedGridDimension++ * SAMPLES_PER_PIXEL + sampleIndex] + stratifiedGridIndexOffset) % SAMPLES_PER_PIXEL;
+		uvec2 gridCoord = uvec2(i % STRATIFIED_GRID_SIZE, i / STRATIFIED_GRID_SIZE);
+
+		return (gridCoord + vec2(rand(), rand())) / STRATIFIED_GRID_SIZE;
+	}
+	else
+	{
+		return vec2(rand(), rand());
+	}
 }
 
-vec3 randomHemispherePoint(vec3 dir)
+vec2 randomStratifiedOffset()
 {
-	vec3 v = randomSpherePoint();
-	return v * sign(dot(v, dir));
+	if (STRATIFIED_SAMPLING && stratifiedGridDimension++ < 1)
+	{
+		uvec2 gridCoord = uvec2(sampleIndex % STRATIFIED_GRID_SIZE, sampleIndex / STRATIFIED_GRID_SIZE);
+
+		return (gridCoord + vec2(rand(), rand())) / STRATIFIED_GRID_SIZE;
+	}
+	else
+	{
+		return vec2(rand(), rand());
+	}
+}*/
+
+vec2 randomStratifiedOffset()
+{
+	uvec2 gridCoord = uvec2(sampleIndex % STRATIFIED_GRID_SIZE, sampleIndex / STRATIFIED_GRID_SIZE);
+
+	return (gridCoord + vec2(rand(), rand())) / STRATIFIED_GRID_SIZE;
 }
 
 void createNormalCoordSystem(vec3 N, out vec3 Nt, out vec3 Nb)
@@ -140,6 +178,23 @@ vec3 randomHemispherePointCosineWeighted(vec3 dir)
 		v.x * Nb.z + v.y * dir.z + v.z * Nt.z
 	);
 }
+
+/*vec3 randomHemispherePointCosineWeightedStratified(vec3 dir)
+{
+	vec2 stratRand = randomStratifiedOffset();
+	float theta = acos(sqrt(1 - stratRand.x));
+	float phi = 2 * M_PI * stratRand.y;
+	vec3 v = vec3(sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi));
+
+	vec3 Nt, Nb;
+	createNormalCoordSystem(dir, Nt, Nb);
+
+	return vec3(
+		v.x * Nb.x + v.y * dir.x + v.z * Nt.x,
+		v.x * Nb.y + v.y * dir.y + v.z * Nt.y,
+		v.x * Nb.z + v.y * dir.z + v.z * Nt.z
+	);
+}*/
 
 Intersection intersectSphere(Sphere s, Ray r)
 {
@@ -215,37 +270,60 @@ Intersection closestHit(Ray ray, Intersection prev, Intersection new)
 
 Intersection intersectScene(Ray ray)
 {
-	Intersection inter = Intersection(false, vec3(0), vec3(0), Material(vec3(0), vec3(0), 0));
+	Intersection inter = NO_INTERSECTION;
 	for (int i = 0; i < spheres.length(); i++)
 		inter = closestHit(ray, inter, intersectSphere(spheres[i], ray));
 	for (int i = 0; i < aabbs.length(); i++)
 		inter = closestHit(ray, inter, intersectAABB(aabbs[i], ray));
+
+	return inter;
+}
+
+Intersection intersectScene(Ray ray, float maxDistSquared)
+{
+	Intersection inter = intersectScene(ray);
+
+	vec3 diff = inter.pos - ray.origin;
+	if (dot(diff, diff) > maxDistSquared)
+		return NO_INTERSECTION;
 	
 	return inter;
 }
 
-vec3 sampleBRDFDir(Material material, vec3 dir, vec3 normal)
+vec3 sampleBRDF(Material material, vec3 normal, vec3 Lo)
 {
-	if (material.roughness == 1)
-		return randomHemispherePointCosineWeighted(normal);
-	else
-		return reflect(-dir, normal);
+	switch(material.brdfType)
+	{
+		default:
+		case BRDF_DIFFUSE:
+			return randomHemispherePointCosineWeighted(normal);
+		case BRDF_SPECULAR:
+			return reflect(-Lo, normal);
+	}
 }
 
 vec3 evaluateBRDF(Material material, vec3 Li, vec3 normal, vec3 Lo)
 {
-	if (material.roughness == 1)
-		return material.albedo / M_PI;
-	else
-		return material.albedo / dot(normal, Li); // Should be specular instead of albedo
+	switch(material.brdfType)
+	{
+		default:
+		case BRDF_DIFFUSE:
+			return material.albedo / M_PI;
+		case BRDF_SPECULAR:
+			return material.albedo / dot(normal, Li); // Should be specular instead of albedo
+	}
 }
 
 float evaluatePDF(Material material, vec3 Li, vec3 normal, vec3 Lo)
 {
-	if (material.roughness == 1)
-		return dot(normal, Li) / M_PI;
-	else
-		return 1;
+	switch(material.brdfType)
+	{
+		default:
+		case BRDF_DIFFUSE:
+			return dot(normal, Li) / M_PI;
+		case BRDF_SPECULAR:
+			return 1;
+	}
 }
 
 vec3 background(vec3 dir)
@@ -254,13 +332,60 @@ vec3 background(vec3 dir)
 	return vec3(max(0, dot(dir, vec3(0,-1,0)))) * vec3(0.2,0.2,1);
 }
 
+vec3 lightContribution(Material material, Material lightMaterial, vec3 pos, vec3 lightPos, vec3 normal, vec3 Lo)
+{
+	vec3 Li = normalize(lightPos - pos);
+
+	float cosine = max(0, dot(normal, Li));
+	if (cosine <= 0)
+		return vec3(0);
+
+	vec3 lightPosDiff = lightPos - pos;
+	Intersection shadowInter = intersectScene(makeRay(pos + normal * EPSILON, Li), dot(lightPosDiff, lightPosDiff));
+	if (shadowInter.hit)
+		return vec3(0);
+
+	vec3 brdf = evaluateBRDF(material, Li, normal, Lo);
+	float pdf = evaluatePDF(material, Li, normal, Lo);
+	return lightMaterial.radiance * brdf * cosine / pdf;
+}
+
+vec3 directLighting(Material material, vec3 pos, vec3 normal, vec3 Lo)
+{
+	vec3 light = vec3(0);
+
+	for (int i = 0; i < spheres.length(); i++)
+	{
+		Sphere sphere = spheres[i];
+		if (any(greaterThan(sphere.material.radiance, vec3(0))))
+		{
+			vec3 lightPos = sphere.center;
+			light += lightContribution(material, sphere.material, pos, lightPos, normal, Lo);
+		}
+	}
+	for (int i = 0; i < aabbs.length(); i++)
+	{
+		AABB aabb = aabbs[i];
+		if (any(greaterThan(aabb.material.radiance, vec3(0))))
+		{
+			//vec3 lightPos = (aabb.max + aabb.min) * 0.5;
+			vec3 lightPos = vec3(mix(aabb.min.xz, aabb.max.xz, rand()), aabb.max.y + EPSILON).xzy;
+
+			light += lightContribution(material, aabb.material, pos, lightPos, normal, Lo);
+		}
+	}
+
+	return light;
+}
+
 vec3 calculateColor(Ray startRay)
 {
 	vec3 color = vec3(0);
 	vec3 throughput = vec3(1);
 	
 	Ray ray = startRay;
-	for (int i = 0; i < NUM_BOUNCES + 1; i++)
+	bool specularBounce = false;
+	for (int bounces = 0; bounces <= NUM_BOUNCES; bounces++)
 	{
 		Intersection inter = intersectScene(ray);
 
@@ -270,25 +395,26 @@ vec3 calculateColor(Ray startRay)
 			break;
 		}
 
-		color += throughput * inter.material.radiance;
+		if (bounces == 0 || specularBounce)
+		{
+			color += throughput * inter.material.radiance;
+		}
 
-		//for (int i2 = 0; i2 < LIGHTS.length(); i2++)
-		/*{
-			vec3 dirToLight = SUN_DIR;
-			Intersection shadowInter = intersectScene(makeRay(inter.pos + inter.normal * EPSILON, dirToLight));
-			if (!shadowInter.hit)
-			{
-				vec3 lightBrdf = evaluateBRDF(inter.material, dirToLight, inter.normal, -ray.dir);
-				float lightPdf = evaluatePDF(inter.material, dirToLight, inter.normal, -ray.dir);
-				color += throughput * lightBrdf * max(0, dot(inter.normal, dirToLight)) / lightPdf;
-			}
-		}*/
+		if (inter.material.brdfType != BRDF_SPECULAR)
+		{
+			color += throughput * directLighting(inter.material, inter.pos, inter.normal, -ray.dir);
+		}
 
-		vec3 brdfDir = sampleBRDFDir(inter.material, -ray.dir, inter.normal);
-		vec3 brdf = evaluateBRDF(inter.material, brdfDir, inter.normal, -ray.dir);
-		float pdf = evaluatePDF(inter.material, brdfDir, inter.normal, -ray.dir);
+		if (bounces == NUM_BOUNCES)
+			break;
 
-		throughput *= max(vec3(0), brdf * dot(inter.normal, brdfDir) / pdf);
+		vec3 Li = sampleBRDF(inter.material, inter.normal, -ray.dir);
+		vec3 brdf = evaluateBRDF(inter.material, Li, inter.normal, -ray.dir);
+		float pdf = evaluatePDF(inter.material, Li, inter.normal, -ray.dir);
+		if (brdf == vec3(0) || pdf == 0)
+			break;
+
+		throughput *= brdf * abs(dot(inter.normal, Li)) / pdf;
 
 		// Russian Roulette
 		float rrProb = max(throughput.r, max(throughput.g, throughput.b));
@@ -296,7 +422,8 @@ vec3 calculateColor(Ray startRay)
 			break;
 		throughput *= 1 / rrProb; // Re-add lost energy for terminated paths
 
-		ray = makeRay(inter.pos + inter.normal * EPSILON, brdfDir);
+		ray = makeRay(inter.pos + inter.normal * EPSILON, Li);
+		specularBounce = inter.material.brdfType == BRDF_SPECULAR;
 	}
 	
 	return color;
@@ -308,6 +435,10 @@ void main()
 	if (coord.x >= framebufferSize.x || coord.y >= framebufferSize.y)
 		return;
 	
+	pixelIndex = gl_GlobalInvocationID.y * uint(framebufferSize.x) + gl_GlobalInvocationID.x;
+	initRand();
+	//stratifiedGridIndexOffset = uint(rand() * 0xFFFFFFFFu);
+
 	vec4 ray00 = vec4(-1, -1, 0, 1) * invViewProjMatrix;
 	ray00 /= ray00.w;
 	vec4 ray10 = vec4(1, -1, 0, 1) * invViewProjMatrix;
@@ -320,10 +451,10 @@ void main()
 	vec3 color = vec3(0);
 	for(int i = 0; i < SAMPLES_PER_PIXEL; i++)
 	{
-		ivec2 gridPos = ivec2(i % SUB_PIXEL_GRID_SIZE, i / SUB_PIXEL_GRID_SIZE);
-		vec2 subPixelOffset = (gridPos + vec2(rand(), rand())) / SUB_PIXEL_GRID_SIZE;
+		sampleIndex = i;
+		//stratifiedGridDimension = 0;
 
-		vec2 uv = (coord + subPixelOffset) / framebufferSize;
+		vec2 uv = (coord + randomStratifiedOffset()) / framebufferSize;
 		vec3 dir = normalize(mix(mix(ray00.xyz, ray01.xyz, uv.y), mix(ray10.xyz, ray11.xyz, uv.y), uv.x));
 	
 		color += calculateColor(makeRay(camPos, dir));
@@ -331,8 +462,8 @@ void main()
 	
 	if (PROGRESSIVE)
 	{
-		vec3 prev = numRuns == 1 ? vec3(0) : imageLoad(framebuffer, coord).rgb;
-		vec3 newAvg = mix(prev, color, 1.0 / (SAMPLES_PER_PIXEL * numRuns));
+		vec3 prev = numPasses == 1 ? vec3(0) : imageLoad(framebuffer, coord).rgb;
+		vec3 newAvg = mix(prev, color, 1.0 / (SAMPLES_PER_PIXEL * numPasses));
 		
 	 	imageStore(framebuffer, coord, vec4(newAvg, 1));
  	}

@@ -9,34 +9,14 @@ import org.lwjgl.opengl.GL20;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import benjaminsannholm.util.math.Matrix4;
-import benjaminsannholm.util.math.Vector2;
-import benjaminsannholm.util.math.Vector3;
-import benjaminsannholm.util.math.Vector4;
 import benjaminsannholm.util.opengl.GLAPI;
 import benjaminsannholm.util.opengl.GraphicsObject;
-import benjaminsannholm.util.opengl.shader.uniforms.FloatUniform;
-import benjaminsannholm.util.opengl.shader.uniforms.IntegerUniform;
-import benjaminsannholm.util.opengl.shader.uniforms.Matrix4Uniform;
-import benjaminsannholm.util.opengl.shader.uniforms.Vector2Uniform;
-import benjaminsannholm.util.opengl.shader.uniforms.Vector3Uniform;
-import benjaminsannholm.util.opengl.shader.uniforms.Vector4Uniform;
 import gnu.trove.map.hash.THashMap;
 
 public class ShaderProgram extends GraphicsObject
 {
-    private static final Map<Class<?>, Class<? extends Uniform<?>>> UNIFORM_TYPES = ImmutableMap.<Class<?>, Class<? extends Uniform<?>>> builder()
-            .put(Integer.class, IntegerUniform.class)
-            .put(Float.class, FloatUniform.class)
-            .put(Vector2.class, Vector2Uniform.class)
-            .put(Vector3.class, Vector3Uniform.class)
-            .put(Vector4.class, Vector4Uniform.class)
-            .put(Matrix4.class, Matrix4Uniform.class)
-            .build();
-    
     private Set<Shader> shaders;
     private List<String> vertexInputs, fragmentOutputs;
 
@@ -120,7 +100,7 @@ public class ShaderProgram extends GraphicsObject
         Uniform<T> uniform = uniforms.get(name);
         if (uniform == null)
         {
-            final Class<? extends Uniform<?>> uniformType = UNIFORM_TYPES.get(value.getClass());
+            final Class<? extends Uniform<?>> uniformType = Uniform.TYPES.get(value.getClass());
             Preconditions.checkArgument(uniformType != null, "No uniform type for " + value.getClass());
             
             try
@@ -130,7 +110,7 @@ public class ShaderProgram extends GraphicsObject
             }
             catch (Exception e)
             {
-                e.printStackTrace();
+                throw new RuntimeException(e);
             }
         }
         

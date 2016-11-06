@@ -1,5 +1,7 @@
 package benjaminsannholm.util.math;
 
+import java.util.Objects;
+
 import com.google.common.base.MoreObjects;
 
 public class Quaternion
@@ -75,7 +77,7 @@ public class Quaternion
         {
             // Get the angle between the 2 quaternions,
             // and then store the sin() of that angle
-            final float angle = (float) Math.acos(absDot);
+            final float angle = (float)Math.acos(absDot);
             final float invSinTheta = 1 / FastMath.sin(angle);
 
             // Calculate the scale for q1 and q2, according to the angle and
@@ -128,6 +130,27 @@ public class Quaternion
                 m10, m11, m12, 0,
                 m20, m21, m22, 0,
                 0, 0, 0, 1);
+    }
+    
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj)
+            return true;
+        if (obj == null || getClass() != obj.getClass())
+            return false;
+
+        final Quaternion other = (Quaternion)obj;
+        return Float.floatToIntBits(getX()) == Float.floatToIntBits(other.getX())
+                && Float.floatToIntBits(getY()) == Float.floatToIntBits(other.getY())
+                && Float.floatToIntBits(getZ()) == Float.floatToIntBits(other.getZ())
+                && Float.floatToIntBits(getW()) == Float.floatToIntBits(other.getW());
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(getX(), getY(), getZ(), getW());
     }
     
     @Override

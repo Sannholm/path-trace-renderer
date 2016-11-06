@@ -1,5 +1,7 @@
 package benjaminsannholm.util.math;
 
+import java.util.Objects;
+
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 
@@ -93,6 +95,26 @@ public class Transform
                 m10 * s.getY(), m11 * s.getY(), m12 * s.getY(), p.getY(),
                 m20 * s.getZ(), m21 * s.getZ(), m22 * s.getZ(), p.getZ(),
                 0, 0, 0, 1);
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj)
+            return true;
+        if (obj == null || getClass() != obj.getClass())
+            return false;
+
+        final Transform other = (Transform)obj;
+        return getPos().equals(other.getPos())
+                && getRot().equals(other.getRot())
+                && getScale().equals(other.getScale());
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(getPos(), getRot(), getScale());
     }
 
     @Override

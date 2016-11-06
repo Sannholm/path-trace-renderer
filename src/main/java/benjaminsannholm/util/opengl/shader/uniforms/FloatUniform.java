@@ -1,5 +1,9 @@
 package benjaminsannholm.util.opengl.shader.uniforms;
 
+import static org.lwjgl.system.MemoryStack.stackPush;
+
+import org.lwjgl.system.MemoryStack;
+
 import benjaminsannholm.util.opengl.GLAPI;
 import benjaminsannholm.util.opengl.shader.ShaderProgram;
 import benjaminsannholm.util.opengl.shader.Uniform;
@@ -10,10 +14,13 @@ public class FloatUniform extends Uniform<Float>
     {
         super(parent, name);
     }
-
+    
     @Override
     protected void upload()
     {
-        GLAPI.setUniform1f(getLocation(), getValue());
+        try (MemoryStack stack = stackPush())
+        {
+            GLAPI.setUniform1f(getLocation(), stack.floats(getValue()));
+        }
     }
 }

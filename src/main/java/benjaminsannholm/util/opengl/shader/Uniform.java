@@ -1,37 +1,71 @@
 package benjaminsannholm.util.opengl.shader;
 
-import com.google.common.base.Preconditions;
+import java.util.Map;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+
+import benjaminsannholm.util.math.Matrix4;
+import benjaminsannholm.util.math.Vector2;
+import benjaminsannholm.util.math.Vector3;
+import benjaminsannholm.util.math.Vector4;
 import benjaminsannholm.util.opengl.GLAPI;
+import benjaminsannholm.util.opengl.shader.uniforms.FloatUniform;
+import benjaminsannholm.util.opengl.shader.uniforms.IntArrayUniform;
+import benjaminsannholm.util.opengl.shader.uniforms.IntegerUniform;
+import benjaminsannholm.util.opengl.shader.uniforms.Matrix4Uniform;
+import benjaminsannholm.util.opengl.shader.uniforms.Vector2Uniform;
+import benjaminsannholm.util.opengl.shader.uniforms.Vector3Uniform;
+import benjaminsannholm.util.opengl.shader.uniforms.Vector4Uniform;
 
 public abstract class Uniform<T>
 {
+    public static final Map<Class<?>, Class<? extends Uniform<?>>> TYPES = ImmutableMap.<Class<?>, Class<? extends Uniform<?>>> builder()
+            .put(Integer.class, IntegerUniform.class)
+            .put(Float.class, FloatUniform.class)
+            .put(Vector2.class, Vector2Uniform.class)
+            .put(Vector3.class, Vector3Uniform.class)
+            .put(Vector4.class, Vector4Uniform.class)
+            .put(Matrix4.class, Matrix4Uniform.class)
+            .put(int[].class, IntArrayUniform.class)
+            .build();
+
     private final ShaderProgram parent;
     private final String name;
-
+    
     private int location = -2; // -1 cannot be used since getUniformLocation might return it
     private T value;
     private boolean isDirty = true;
-
+    
     public Uniform(ShaderProgram parent, String name)
     {
         this.parent = Preconditions.checkNotNull(parent, "parent");
         this.name = Preconditions.checkNotNull(name, "name");
     }
-
+    
     public T getValue()
     {
         return value;
     }
-
+    
+    protected boolean equalsValue(T value)
+    {
+        return value.equals(getValue());
+    }
+    
+    protected T copyValue(T value)
+    {
+        return value;
+    }
+    
     public void set(T value)
     {
         Preconditions.checkNotNull(value, "value");
-
-        if (!value.equals(this.value))
+        
+        if (!equalsValue(value))
             isDirty = true;
-            
-        this.value = value;
+        
+        this.value = copyValue(value);
     }
 
     public void update()
@@ -42,11 +76,11 @@ public abstract class Uniform<T>
             upload();
         }
     }
-
+    
     protected int getLocation()
     {
         return location != -2 ? location : (location = GLAPI.getUniformLocation(parent.getHandle(), name));
     }
-
+    
     protected abstract void upload();
 }
