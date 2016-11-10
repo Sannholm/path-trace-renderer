@@ -75,48 +75,48 @@ import benjaminsannholm.util.resource.StackedResourceLocator;
 public class Bootstrap
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(Bootstrap.class);
-    
-    private static final Random RAND = ThreadLocalRandom.current();
 
+    private static final Random RAND = ThreadLocalRandom.current();
+    
     private static final int WINDOW_WIDTH = 256;
     private static final int WINDOW_HEIGHT = 256;
-    
+
     private static final ResourceLocator BASE_RESOURCE_LOCATOR = new PrefixedResourceLocator(
             new ClasspathResourceLocator(), "/");
-    
+
     private final TextureManager textureManager = new TextureManager(
             new PrefixedResourceLocator(BASE_RESOURCE_LOCATOR, "textures/"));
-    
+
     private final ShaderManager shaderManager = new ShaderManager(new StackedResourceLocator(
             new PrefixedResourceLocator(new FileResourceLocator(), "shaders/"),
             new PrefixedResourceLocator(BASE_RESOURCE_LOCATOR, "shaders/")), 430, false);
-
+    
     private long window;
     private int width;
     private int height;
-
+    
     private double prevFrameTime;
     private double timeElapsed;
     private double lastFPSTime;
     private int fpsCounter;
     private int fps;
-
-    private Texture2D mainFrameBufferTex;
     
+    private Texture2D mainFrameBufferTex;
+
     private Transform cameraTransform;
     private Matrix4 projectionMatrix;
     private Matrix4 viewMatrix;
-
+    
     private int numPasses;
     private long totalComputeTime;
-
+    
     public void run()
     {
         try
         {
             init();
             loop();
-
+            
             glfwFreeCallbacks(window);
             glfwDestroyWindow(window);
         }
@@ -126,20 +126,20 @@ public class Bootstrap
             glfwSetErrorCallback(null).free();
         }
     }
-
+    
     private void init()
     {
         setupWindow();
         GLAPI.setFramebufferSRGB(true);
     }
-    
+
     private void setupWindow()
     {
         GLFWErrorCallback.createPrint(System.err).set();
-        
+
         if (!glfwInit())
             throw new IllegalStateException("Unable to initialize GLFW");
-        
+
         glfwDefaultWindowHints();
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
@@ -147,18 +147,18 @@ public class Bootstrap
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_TRUE);
-        
+
         window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Renderer", NULL, NULL);
         if (window == NULL)
             throw new RuntimeException("Failed to create the GLFW window");
-        
+
         final GLFWVidMode vidmode = glfwGetVideoMode(glfwGetPrimaryMonitor());
         glfwSetWindowPos(window, (vidmode.width() - WINDOW_WIDTH) / 2, (vidmode.height() - WINDOW_HEIGHT) / 2);
-        
+
         glfwMakeContextCurrent(window);
         GL.createCapabilities(true);
         glfwSwapInterval(1);
-        
+
         glfwSetKeyCallback(window, (window, key, scancode, action, mods) ->
         {
             if (action == GLFW_RELEASE)
@@ -180,12 +180,12 @@ public class Bootstrap
                 }
             }
         });
-        
+
         glfwSetFramebufferSizeCallback(window, this::onResize);
-        
+
         glfwShowWindow(window);
     }
-
+    
     private void onResize(long window, int width, int height)
     {
         if ((width != this.width || height != this.height)
@@ -193,21 +193,21 @@ public class Bootstrap
         {
             this.width = width;
             this.height = height;
-            
+
             resetRender();
         }
     }
-
+    
     private void resetRender()
     {
         if (mainFrameBufferTex != null)
             mainFrameBufferTex.dispose();
         mainFrameBufferTex = null;
-
+        
         numPasses = 0;
         totalComputeTime = 0;
     }
-    
+
     private void loop()
     {
         prevFrameTime = glfwGetTime();
@@ -216,7 +216,7 @@ public class Bootstrap
             final double delta = glfwGetTime() - prevFrameTime;
             timeElapsed += delta;
             prevFrameTime = glfwGetTime();
-            
+
             fpsCounter++;
             if (glfwGetTime() - lastFPSTime >= 1)
             {
@@ -224,22 +224,22 @@ public class Bootstrap
                 fpsCounter = 0;
                 lastFPSTime = glfwGetTime();
             }
-
+            
             update();
             render();
-
+            
             glfwSwapBuffers(window);
             glfwPollEvents();
         }
     }
-
+    
     private void update()
     {
         if (timeElapsed % 1 < 0.05)
         {
             System.out.println(fps);
         }
-
+        
         /*final float angle = 20 * (float) Math.sin(Math.toRadians(timeElapsed * 100));
         cameraTransform = Transform.create(
                 Vector3.create(0, 0, 50).rotateY(-angle),
@@ -249,24 +249,24 @@ public class Bootstrap
                 Vector3.create(0, 0, 30),
                 Quaternion.IDENTITY,
                 Vector3.ONE);
-
+        
         projectionMatrix = Matrix4.createPerspectiveProjection(0.1F, 1000, 90, (float)width / height);
         viewMatrix = cameraTransform.getRot().toMatrix4();
     }
-    
+
     /*private static final int MAX_STRATIFIED_DIMENSIONS = 5;
     private static final int SAMPLES_PER_PIXEL = 100;
     private final int[] stratifiedGridIndices = new int[MAX_STRATIFIED_DIMENSIONS * SAMPLES_PER_PIXEL];
-    
+
     private int[] generateStratifiedGridIndices()
     {
         for (int i = 0; i < MAX_STRATIFIED_DIMENSIONS; i++)
         {
             final int[] indices = new int[SAMPLES_PER_PIXEL];
-    
+
             for (int j = 0; j < SAMPLES_PER_PIXEL; j++)
                 indices[j] = j;
-
+    
             for (int k = SAMPLES_PER_PIXEL; k > 1; k--)
             {
                 final int rand = RAND.nextInt(k);
@@ -274,13 +274,13 @@ public class Bootstrap
                 indices[rand] = indices[k - 1];
                 indices[k - 1] = tmp;
             }
-    
+
             System.arraycopy(indices, 0, stratifiedGridIndices, i * SAMPLES_PER_PIXEL, SAMPLES_PER_PIXEL);
         }
-    
+
         return stratifiedGridIndices;
     }*/
-
+    
     private void render()
     {
         if (mainFrameBufferTex == null)
@@ -289,16 +289,16 @@ public class Bootstrap
                     .format(Format.RGBA32F)
                     .build();
         }
-
+        
         final int MAX_PASSES = 10;
         if (numPasses < MAX_PASSES)
         {
             numPasses++;
-
-            final Matrix4 invViewProjMatrix = projectionMatrix.multiply(viewMatrix).invert();
             
-            mainFrameBufferTex.bindImage(0, Access.WRITE, Format.RGBA32F);
+            final Matrix4 invViewProjMatrix = projectionMatrix.multiply(viewMatrix).invert();
 
+            mainFrameBufferTex.bindImage(0, Access.WRITE, Format.RGBA32F);
+            
             final ShaderProgram program1 = shaderManager.getProgram("compute_draw");
             program1.setUniform("framebuffer", 0);
             program1.setUniform("framebufferSize", Vector2.create(mainFrameBufferTex.getWidth(), mainFrameBufferTex.getHeight()));
@@ -309,35 +309,35 @@ public class Bootstrap
             program1.setUniform("camPos", cameraTransform.getPos());
             //program1.setUniform("stratifiedGridIndices", generateStratifiedGridIndices());
             program1.use();
-
+            
             final int WORKGROUP_SIZE = 16;
             final int numGroupsX = MathUtils.nextPoT(FastMath.fastCeil((float)mainFrameBufferTex.getWidth() / WORKGROUP_SIZE));
             final int numGroupsY = MathUtils.nextPoT(FastMath.fastCeil((float)mainFrameBufferTex.getHeight() / WORKGROUP_SIZE));
-            
+
             final Stopwatch sw = Stopwatch.createStarted();
-            
+
             program1.dispatchCompute(numGroupsX, numGroupsY, 1);
-            
+
             final long elapsed = sw.elapsed(TimeUnit.MICROSECONDS);
             totalComputeTime += elapsed;
             System.out.println("Compute: " + elapsed + " (" + totalComputeTime / numPasses + ") us (" + numPasses + ")");
-            
+
             GLAPI.memoryBarrier(GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
         }
-        
+
         FrameBuffer.unBind();
         GLAPI.setViewport(0, 0, width, height);
-        
+
         mainFrameBufferTex.bind(0);
-        
+
         final ShaderProgram program2 = shaderManager.getProgram("post_composite");
         program2.setUniform("tex", 0);
         //program2.setUniform("exposure", FastMath.sin((float)timeElapsed * 2) * 0.5F + 0.5F);
         program2.setUniform("exposure", 1F);
         program2.use();
-        
+
         FullscreenQuadRenderer.render();
-        
+
         Texture2D.unbind(0);
     }
 }

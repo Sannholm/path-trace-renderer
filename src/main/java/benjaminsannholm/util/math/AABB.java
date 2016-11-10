@@ -9,7 +9,7 @@ import com.google.common.collect.ImmutableSet;
 
 public class AABB extends BaseVolume<AABB>
 {
-    private static final Set<Vector3> SEPARATING_AXES = ImmutableSet.<Vector3> builder()
+    private static final Set<Vector3> SEPARATING_AXES = ImmutableSet.<Vector3>builder()
             .add(Vector3.X_AXIS).add(Vector3.Y_AXIS).add(Vector3.Z_AXIS)
             .build();
 
@@ -47,7 +47,7 @@ public class AABB extends BaseVolume<AABB>
     {
         final Vector3 min = getMin();
         final Vector3 max = getMax();
-        return ImmutableSet.<Vector3> builder()
+        return ImmutableSet.<Vector3>builder()
                 // Bottom
                 .add(min)
                 .add(Vector3.create(max.getX(), min.getY(), min.getZ()))

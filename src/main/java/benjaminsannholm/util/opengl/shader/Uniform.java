@@ -20,7 +20,7 @@ import benjaminsannholm.util.opengl.shader.uniforms.Vector4Uniform;
 
 public abstract class Uniform<T>
 {
-    public static final Map<Class<?>, Class<? extends Uniform<?>>> TYPES = ImmutableMap.<Class<?>, Class<? extends Uniform<?>>> builder()
+    public static final Map<Class<?>, Class<? extends Uniform<?>>> TYPES = ImmutableMap.<Class<?>, Class<? extends Uniform<?>>>builder()
             .put(Integer.class, IntegerUniform.class)
             .put(Float.class, FloatUniform.class)
             .put(Vector2.class, Vector2Uniform.class)

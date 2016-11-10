@@ -8,17 +8,17 @@ public class FastMath
 
     public static int fastFloor(double x)
     {
-        return (int) (x + BIG_ENOUGH_FLOOR) - BIG_ENOUGH_INT;
+        return (int)(x + BIG_ENOUGH_FLOOR) - BIG_ENOUGH_INT;
     }
 
     public static int fastRound(double x)
     {
-        return (int) (x + BIG_ENOUGH_ROUND) - BIG_ENOUGH_INT;
+        return (int)(x + BIG_ENOUGH_ROUND) - BIG_ENOUGH_INT;
     }
 
     public static int fastCeil(double x)
     {
-        return BIG_ENOUGH_INT - (int) (BIG_ENOUGH_FLOOR - x);
+        return BIG_ENOUGH_INT - (int)(BIG_ENOUGH_FLOOR - x);
     }
 
     public static boolean areLowBitsEqual(int value, int lowBits)
@@ -82,15 +82,15 @@ public class FastMath
 
     static
     {
-        RAD = (float) Math.PI / 180.0f;
-        DEG = 180.0f / (float) Math.PI;
+        RAD = (float)Math.PI / 180.0f;
+        DEG = 180.0f / (float)Math.PI;
 
         SIN_BITS = 12;
         SIN_MASK = ~(-1 << SIN_BITS);
         SIN_COUNT = SIN_MASK + 1;
 
-        radFull = (float) (Math.PI * 2.0);
-        degFull = (float) 360.0;
+        radFull = (float)(Math.PI * 2.0);
+        degFull = (float)360.0;
         radToIndex = SIN_COUNT / radFull;
         degToIndex = SIN_COUNT / degFull;
 
@@ -99,8 +99,8 @@ public class FastMath
 
         for (int i = 0; i < SIN_COUNT; i++)
         {
-            sin[i] = (float) Math.sin((i + 0.5f) / SIN_COUNT * radFull);
-            cos[i] = (float) Math.cos((i + 0.5f) / SIN_COUNT * radFull);
+            sin[i] = (float)Math.sin((i + 0.5f) / SIN_COUNT * radFull);
+            cos[i] = (float)Math.cos((i + 0.5f) / SIN_COUNT * radFull);
         }
     }
 
@@ -110,12 +110,12 @@ public class FastMath
 
     public static final float sin(float rad)
     {
-        return sin[(int) (rad * radToIndex) & SIN_MASK];
+        return sin[(int)(rad * radToIndex) & SIN_MASK];
     }
 
     public static final float cos(float rad)
     {
-        return cos[(int) (rad * radToIndex) & SIN_MASK];
+        return cos[(int)(rad * radToIndex) & SIN_MASK];
     }
 
     /**
@@ -124,12 +124,12 @@ public class FastMath
 
     public static final float sinDeg(float deg)
     {
-        return sin[(int) (deg * degToIndex) & SIN_MASK];
+        return sin[(int)(deg * degToIndex) & SIN_MASK];
     }
 
     public static final float cosDeg(float deg)
     {
-        return cos[(int) (deg * degToIndex) & SIN_MASK];
+        return cos[(int)(deg * degToIndex) & SIN_MASK];
     }
 
     /**
@@ -138,12 +138,12 @@ public class FastMath
 
     public static final float sinDegStrict(float deg)
     {
-        return (float) Math.sin(deg * RAD);
+        return (float)Math.sin(deg * RAD);
     }
 
     public static final float cosDegStrict(float deg)
     {
-        return (float) Math.cos(deg * RAD);
+        return (float)Math.cos(deg * RAD);
     }
 
     /**
@@ -155,7 +155,7 @@ public class FastMath
     private static final int ATAN2_BITS2 = ATAN2_BITS << 1;
     private static final int ATAN2_MASK = ~(-1 << ATAN2_BITS2);
     private static final int ATAN2_COUNT = ATAN2_MASK + 1;
-    private static final int ATAN2_DIM = (int) Math.sqrt(ATAN2_COUNT);
+    private static final int ATAN2_DIM = (int)Math.sqrt(ATAN2_COUNT);
 
     private static final float ATAN2_DIM_MINUS_1 = ATAN2_DIM - 1;
 
@@ -167,10 +167,10 @@ public class FastMath
         {
             for (int j = 0; j < ATAN2_DIM; j++)
             {
-                float x0 = (float) i / ATAN2_DIM;
-                float y0 = (float) j / ATAN2_DIM;
+                float x0 = (float)i / ATAN2_DIM;
+                float y0 = (float)j / ATAN2_DIM;
 
-                atan2[j * ATAN2_DIM + i] = (float) Math.atan2(y0, x0);
+                atan2[j * ATAN2_DIM + i] = (float)Math.atan2(y0, x0);
             }
         }
     }
@@ -186,7 +186,7 @@ public class FastMath
 
     public static final float atan2DegStrict(float y, float x)
     {
-        return (float) Math.atan2(y, x) * DEG;
+        return (float)Math.atan2(y, x) * DEG;
     }
 
     public static final float atan2(float y, float x)
@@ -227,8 +227,8 @@ public class FastMath
 
         float invDiv = ATAN2_DIM_MINUS_1 / (x < y ? y : x);
 
-        int xi = (int) (x * invDiv);
-        int yi = (int) (y * invDiv);
+        int xi = (int)(x * invDiv);
+        int yi = (int)(y * invDiv);
 
         return (atan2[yi * ATAN2_DIM + xi] + add) * mul;
     }
@@ -246,14 +246,14 @@ public class FastMath
     {
         for (int i = 0; i < NORMALIZE_LOOKUP_TABLE.length; i++)
         {
-            NORMALIZE_LOOKUP_TABLE[i] = 1.0f / (float) Math.sqrt(i / (float) NORMALIZE_LOOKUP_FACTOR);
+            NORMALIZE_LOOKUP_TABLE[i] = 1.0f / (float)Math.sqrt(i / (float)NORMALIZE_LOOKUP_FACTOR);
         }
     }
 
     public static void normalizeSlow(float[] v)
     {
         float square = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
-        float factor = (float) (1.0 / Math.sqrt(square));
+        float factor = (float)(1.0 / Math.sqrt(square));
 
         v[0] *= factor;
         v[1] *= factor;
@@ -263,7 +263,7 @@ public class FastMath
     public static void normalizeFast(float[] v)
     {
         float square = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
-        float factor = NORMALIZE_LOOKUP_TABLE[(int) (square * NORMALIZE_LOOKUP_FACTOR)];
+        float factor = NORMALIZE_LOOKUP_TABLE[(int)(square * NORMALIZE_LOOKUP_FACTOR)];
 
         v[0] *= factor;
         v[1] *= factor;
