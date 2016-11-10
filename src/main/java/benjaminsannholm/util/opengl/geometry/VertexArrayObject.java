@@ -9,13 +9,13 @@ public class VertexArrayObject extends GraphicsObject
     {
         create();
     }
-
+    
     @Override
     protected void create()
     {
         setHandle(GLAPI.genVertexArray());
     }
-
+    
     @Override
     public void dispose()
     {
@@ -25,12 +25,12 @@ public class VertexArrayObject extends GraphicsObject
             setHandle(-1);
         }
     }
-
+    
     public void bind()
     {
         GLAPI.bindVertexArray(getHandle());
     }
-
+    
     public static void unbind()
     {
         GLAPI.bindVertexArray(0);

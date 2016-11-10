@@ -17,19 +17,19 @@ public class IntArrayUniform extends Uniform<int[]>
     {
         super(parent, name);
     }
-    
+
     @Override
     protected boolean equalsValue(int[] value)
     {
         return Arrays.equals(value, getValue());
     }
-
+    
     @Override
     protected int[] copyValue(int[] value)
     {
         return Arrays.copyOf(value, value.length);
     }
-    
+
     @Override
     protected void upload()
     {

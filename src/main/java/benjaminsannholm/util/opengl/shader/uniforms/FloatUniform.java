@@ -14,7 +14,7 @@ public class FloatUniform extends Uniform<Float>
     {
         super(parent, name);
     }
-    
+
     @Override
     protected void upload()
     {

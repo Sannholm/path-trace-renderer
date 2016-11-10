@@ -19,23 +19,23 @@ public class FrameBuffer extends GraphicsObject
 {
     private final List<Texture2D> colorAttachments;
     private final Texture2D depthTexture;
-    
+
     private FrameBuffer(List<Texture2D> colorAttachments, Texture2D depthTexture)
     {
         Preconditions.checkNotNull(colorAttachments, "colorAttachments");
         Preconditions.checkArgument(!colorAttachments.isEmpty(), "Framebuffer needs at least one color attachment");
         this.colorAttachments = ImmutableList.copyOf(colorAttachments);
         this.depthTexture = depthTexture;
-        
+
         create();
     }
-    
+
     @Override
     public void create()
     {
         setHandle(GLAPI.genFramebuffer());
         bind();
-        
+
         try (MemoryStack stack = stackPush())
         {
             final IntBuffer drawBuffers = stack.mallocInt(colorAttachments.size());
@@ -49,21 +49,21 @@ public class FrameBuffer extends GraphicsObject
             drawBuffers.rewind();
             GLAPI.setDrawBuffers(drawBuffers);
         }
-        
+
         if (depthTexture != null)
             GLAPI.setFramebufferAttachment(GL30.GL_DEPTH_ATTACHMENT, depthTexture.getType().getTarget(), depthTexture.getHandle());
-        
+
         checkComplete();
         unBind();
     }
-    
+
     private void checkComplete()
     {
         final int status = GL30.glCheckFramebufferStatus(GL30.GL_FRAMEBUFFER);
         if (status != GL30.GL_FRAMEBUFFER_COMPLETE)
         {
             dispose();
-            
+
             switch (status)
             {
                 case GL30.GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT:
@@ -79,7 +79,7 @@ public class FrameBuffer extends GraphicsObject
             }
         }
     }
-    
+
     @Override
     public void dispose()
     {
@@ -89,54 +89,54 @@ public class FrameBuffer extends GraphicsObject
             setHandle(-1);
         }
     }
-    
+
     public void bind()
     {
         Preconditions.checkState(getHandle() != -1, "Framebuffer has not been created or has been disposed");
         GLAPI.bindFramebuffer(getHandle());
     }
-    
+
     public static void unBind()
     {
         GLAPI.bindFramebuffer(0);
     }
-    
+
     public int getWidth()
     {
         return colorAttachments.get(0).getWidth();
     }
-    
+
     public int getHeight()
     {
         return colorAttachments.get(0).getHeight();
     }
-    
+
     public static Builder builder()
     {
         return new Builder();
     }
-    
+
     public static class Builder
     {
         private final List<Texture2D> colorAttachments = new ArrayList<>();
         private Texture2D depthTexture;
-        
+
         private Builder()
         {
         }
-        
+
         public Builder attach(Texture2D texture)
         {
             colorAttachments.add(Preconditions.checkNotNull(texture, "texture"));
             return this;
         }
-        
+
         public Builder depth(Texture2D texture)
         {
             depthTexture = texture;
             return this;
         }
-        
+
         public FrameBuffer build()
         {
             return new FrameBuffer(colorAttachments, depthTexture);

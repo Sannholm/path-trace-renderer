@@ -17,7 +17,7 @@ public class Matrix4Uniform extends Uniform<Matrix4>
     {
         super(parent, name);
     }
-
+    
     @Override
     protected void upload()
     {

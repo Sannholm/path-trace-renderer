@@ -7,7 +7,7 @@ public class RayIntersection
     public final float fraction;
     public final Vector3 point;
     public final Vector3 normal;
-
+    
     RayIntersection(float fraction, Vector3 point, Vector3 normal)
     {
         this.fraction = fraction;

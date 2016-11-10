@@ -36,23 +36,23 @@ import gnu.trove.map.hash.THashMap;
 public class TextureManager
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(TextureManager.class);
-
+    
     private final ResourceLocator textureLocator;
-
+    
     private final Map<String, Texture> textures = new THashMap<>();
-
+    
     public TextureManager(ResourceLocator textureLocator)
     {
         this.textureLocator = Preconditions.checkNotNull(textureLocator, "textureLocator");
     }
-
+    
     public void clearTextures()
     {
         for (Texture texture : textures.values())
             texture.dispose();
         textures.clear();
     }
-
+    
     public Texture getTexture(String path)
     {
         Texture texture = textures.get(path);
@@ -64,25 +64,25 @@ public class TextureManager
                 final int width = rawImage.getWidth();
                 final int height = rawImage.getHeight();
                 BufferedImage formattedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-
+                
                 final Graphics2D g = formattedImage.createGraphics();
                 g.drawImage(rawImage, 0, 0, null);
                 g.dispose();
                 rawImage.flush();
                 rawImage = null;
-                
+
                 final int[] data = ((DataBufferInt)formattedImage.getRaster().getDataBuffer()).getData();
                 formattedImage.flush();
                 formattedImage = null;
-
+                
                 final ByteBuffer buffer = MemoryUtil.memAlloc(data.length * 4);
                 try
                 {
                     buffer.asIntBuffer().put(data);
                     buffer.flip();
-
+                    
                     final TextureConfig config = getTextureConfig(FilenameUtils.removeExtension(path));
-
+                    
                     Texture.Builder<?, ?> builder = null;
                     switch (config.type)
                     {
@@ -95,15 +95,15 @@ public class TextureManager
                         default:
                             throw new IllegalArgumentException("Unsupported texture type: " + config.type);
                     }
-
+                    
                     builder.format(config.sRGB ? Format.SRGB8_ALPHA8 : Format.RGBA8)
                             .magFilter(config.magBlur ? MagnificationFilter.LINEAR : MagnificationFilter.NEAREST)
                             .minFilter(config.mipmap ? (config.minBlur ? MinificationFilter.LINEAR_MIPMAP : MinificationFilter.NEAREST_MIPMAP) : (config.minBlur ? MinificationFilter.LINEAR : MinificationFilter.NEAREST));
-
+                    
                     texture = builder.build();
                     texture.bind(0);
                     texture.upload(buffer, GL12.GL_BGRA, GL12.GL_UNSIGNED_INT_8_8_8_8_REV);
-
+                    
                     if (config.mipmap)
                         GLAPI.generateMipmaps(texture.getType().getTarget());
                 }
@@ -117,12 +117,12 @@ public class TextureManager
                 LOGGER.error("Failed to load texture " + path, e);
                 texture = getTexture("missing.png");
             }
-            
+
             textures.put(path, texture);
         }
         return texture;
     }
-    
+
     private BufferedImage loadImage(String path) throws IOException
     {
         try (InputStream stream = new BufferedInputStream(textureLocator.locate(path).openStream()))
@@ -130,9 +130,9 @@ public class TextureManager
             return ImageIO.read(stream);
         }
     }
-
+    
     private static final Gson GSON = new Gson();
-
+    
     private TextureConfig getTextureConfig(String path)
     {
         try (Reader reader = new BufferedReader(new InputStreamReader(textureLocator.locate(path + ".json").openStream(), StandardCharsets.UTF_8)))
@@ -144,7 +144,7 @@ public class TextureManager
             return new TextureConfig();
         }
     }
-
+    
     private static class TextureConfig
     {
         @SerializedName("type")
@@ -159,7 +159,7 @@ public class TextureManager
         public boolean minBlur = true;
         @SerializedName("clamp")
         public boolean clamp = false;
-
+        
         @Override
         public String toString()
         {

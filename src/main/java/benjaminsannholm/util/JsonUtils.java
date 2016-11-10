@@ -15,7 +15,7 @@ public class JsonUtils
     {
         return !isJsonPrimitive(json, memberName) ? false : json.getAsJsonPrimitive(memberName).isString();
     }
-    
+
     /**
      * Is the given JsonElement a string?
      */
@@ -23,17 +23,17 @@ public class JsonUtils
     {
         return !json.isJsonPrimitive() ? false : json.getAsJsonPrimitive().isString();
     }
-    
+
     public static boolean isNumber(JsonElement json)
     {
         return !json.isJsonPrimitive() ? false : json.getAsJsonPrimitive().isNumber();
     }
-    
+
     public static boolean isBoolean(JsonObject json, String memberName)
     {
         return !isJsonPrimitive(json, memberName) ? false : json.getAsJsonPrimitive(memberName).isBoolean();
     }
-    
+
     /**
      * Does the given JsonObject contain an array field with the given name?
      */
@@ -41,16 +41,15 @@ public class JsonUtils
     {
         return !hasField(json, memberName) ? false : json.get(memberName).isJsonArray();
     }
-    
+
     /**
-     * Does the given JsonObject contain a field with the given name whose type
-     * is primitive (String, Java primitive, or Java primitive wrapper)?
+     * Does the given JsonObject contain a field with the given name whose type is primitive (String, Java primitive, or Java primitive wrapper)?
      */
     public static boolean isJsonPrimitive(JsonObject json, String memberName)
     {
         return !hasField(json, memberName) ? false : json.get(memberName).isJsonPrimitive();
     }
-    
+
     /**
      * Does the given JsonObject contain a field with the given name?
      */
@@ -58,11 +57,9 @@ public class JsonUtils
     {
         return json == null ? false : json.get(memberName) != null;
     }
-    
+
     /**
-     * Gets the string value of the given JsonElement. Expects the second
-     * parameter to be the name of the element's field if an error message needs
-     * to be thrown.
+     * Gets the string value of the given JsonElement. Expects the second parameter to be the name of the element's field if an error message needs to be thrown.
      */
     public static String getString(JsonElement json, String memberName)
     {
@@ -75,7 +72,7 @@ public class JsonUtils
             throw new JsonSyntaxException("Expected " + memberName + " to be a string, was " + toString(json));
         }
     }
-    
+
     /**
      * Gets the string value of the field on the JsonObject with the given name.
      */
@@ -90,20 +87,17 @@ public class JsonUtils
             throw new JsonSyntaxException("Missing " + memberName + ", expected to find a string");
         }
     }
-    
+
     /**
-     * Gets the string value of the field on the JsonObject with the given name,
-     * or the given default value if the field is missing.
+     * Gets the string value of the field on the JsonObject with the given name, or the given default value if the field is missing.
      */
     public static String getString(JsonObject json, String memberName, String fallback)
     {
         return json.has(memberName) ? getString(json.get(memberName), memberName) : fallback;
     }
-    
+
     /**
-     * Gets the boolean value of the given JsonElement. Expects the second
-     * parameter to be the name of the element's field if an error message needs
-     * to be thrown.
+     * Gets the boolean value of the given JsonElement. Expects the second parameter to be the name of the element's field if an error message needs to be thrown.
      */
     public static boolean getBoolean(JsonElement json, String memberName)
     {
@@ -116,10 +110,9 @@ public class JsonUtils
             throw new JsonSyntaxException("Expected " + memberName + " to be a Boolean, was " + toString(json));
         }
     }
-    
+
     /**
-     * Gets the boolean value of the field on the JsonObject with the given
-     * name.
+     * Gets the boolean value of the field on the JsonObject with the given name.
      */
     public static boolean getBoolean(JsonObject json, String memberName)
     {
@@ -132,20 +125,17 @@ public class JsonUtils
             throw new JsonSyntaxException("Missing " + memberName + ", expected to find a Boolean");
         }
     }
-    
+
     /**
-     * Gets the boolean value of the field on the JsonObject with the given
-     * name, or the given default value if the field is missing.
+     * Gets the boolean value of the field on the JsonObject with the given name, or the given default value if the field is missing.
      */
     public static boolean getBoolean(JsonObject json, String memberName, boolean fallback)
     {
         return json.has(memberName) ? getBoolean(json.get(memberName), memberName) : fallback;
     }
-    
+
     /**
-     * Gets the float value of the given JsonElement. Expects the second
-     * parameter to be the name of the element's field if an error message needs
-     * to be thrown.
+     * Gets the float value of the given JsonElement. Expects the second parameter to be the name of the element's field if an error message needs to be thrown.
      */
     public static float getFloat(JsonElement json, String memberName)
     {
@@ -158,7 +148,7 @@ public class JsonUtils
             throw new JsonSyntaxException("Expected " + memberName + " to be a Float, was " + toString(json));
         }
     }
-    
+
     /**
      * Gets the float value of the field on the JsonObject with the given name.
      */
@@ -173,20 +163,17 @@ public class JsonUtils
             throw new JsonSyntaxException("Missing " + memberName + ", expected to find a Float");
         }
     }
-    
+
     /**
-     * Gets the float value of the field on the JsonObject with the given name,
-     * or the given default value if the field is missing.
+     * Gets the float value of the field on the JsonObject with the given name, or the given default value if the field is missing.
      */
     public static float getFloat(JsonObject json, String memberName, float fallback)
     {
         return json.has(memberName) ? getFloat(json.get(memberName), memberName) : fallback;
     }
-    
+
     /**
-     * Gets the integer value of the given JsonElement. Expects the second
-     * parameter to be the name of the element's field if an error message needs
-     * to be thrown.
+     * Gets the integer value of the given JsonElement. Expects the second parameter to be the name of the element's field if an error message needs to be thrown.
      */
     public static int getInt(JsonElement json, String memberName)
     {
@@ -199,10 +186,9 @@ public class JsonUtils
             throw new JsonSyntaxException("Expected " + memberName + " to be a Int, was " + toString(json));
         }
     }
-    
+
     /**
-     * Gets the integer value of the field on the JsonObject with the given
-     * name.
+     * Gets the integer value of the field on the JsonObject with the given name.
      */
     public static int getInt(JsonObject json, String memberName)
     {
@@ -215,20 +201,17 @@ public class JsonUtils
             throw new JsonSyntaxException("Missing " + memberName + ", expected to find a Int");
         }
     }
-    
+
     /**
-     * Gets the integer value of the field on the JsonObject with the given
-     * name, or the given default value if the field is missing.
+     * Gets the integer value of the field on the JsonObject with the given name, or the given default value if the field is missing.
      */
     public static int getInt(JsonObject json, String memberName, int fallback)
     {
         return json.has(memberName) ? getInt(json.get(memberName), memberName) : fallback;
     }
-    
+
     /**
-     * Gets the given JsonElement as a JsonObject. Expects the second parameter
-     * to be the name of the element's field if an error message needs to be
-     * thrown.
+     * Gets the given JsonElement as a JsonObject. Expects the second parameter to be the name of the element's field if an error message needs to be thrown.
      */
     public static JsonObject getJsonObject(JsonElement json, String memberName)
     {
@@ -241,7 +224,7 @@ public class JsonUtils
             throw new JsonSyntaxException("Expected " + memberName + " to be a JsonObject, was " + toString(json));
         }
     }
-    
+
     public static JsonObject getJsonObject(JsonObject json, String memberName)
     {
         if (json.has(memberName))
@@ -253,20 +236,17 @@ public class JsonUtils
             throw new JsonSyntaxException("Missing " + memberName + ", expected to find a JsonObject");
         }
     }
-    
+
     /**
-     * Gets the JsonObject field on the JsonObject with the given name, or the
-     * given default value if the field is missing.
+     * Gets the JsonObject field on the JsonObject with the given name, or the given default value if the field is missing.
      */
     public static JsonObject getJsonObject(JsonObject json, String memberName, JsonObject fallback)
     {
         return json.has(memberName) ? getJsonObject(json.get(memberName), memberName) : fallback;
     }
-    
+
     /**
-     * Gets the given JsonElement as a JsonArray. Expects the second parameter
-     * to be the name of the element's field if an error message needs to be
-     * thrown.
+     * Gets the given JsonElement as a JsonArray. Expects the second parameter to be the name of the element's field if an error message needs to be thrown.
      */
     public static JsonArray getJsonArray(JsonElement json, String memberName)
     {
@@ -279,7 +259,7 @@ public class JsonUtils
             throw new JsonSyntaxException("Expected " + memberName + " to be a JsonArray, was " + toString(json));
         }
     }
-    
+
     /**
      * Gets the JsonArray field on the JsonObject with the given name.
      */
@@ -294,24 +274,22 @@ public class JsonUtils
             throw new JsonSyntaxException("Missing " + memberName + ", expected to find a JsonArray");
         }
     }
-    
+
     /**
-     * Gets the JsonArray field on the JsonObject with the given name, or the
-     * given default value if the field is missing.
+     * Gets the JsonArray field on the JsonObject with the given name, or the given default value if the field is missing.
      */
     public static JsonArray getJsonArray(JsonObject json, String memberName, JsonArray fallback)
     {
         return json.has(memberName) ? getJsonArray(json.get(memberName), memberName) : fallback;
     }
-    
+
     /**
-     * Gets a human-readable description of the given JsonElement's type. For
-     * example: "a number (4)"
+     * Gets a human-readable description of the given JsonElement's type. For example: "a number (4)"
      */
     public static String toString(JsonElement json)
     {
         String s = org.apache.commons.lang3.StringUtils.abbreviateMiddle(String.valueOf(json), "...", 10);
-        
+
         if (json == null)
         {
             return "null (missing)";
@@ -333,18 +311,18 @@ public class JsonUtils
             if (json.isJsonPrimitive())
             {
                 JsonPrimitive jsonprimitive = json.getAsJsonPrimitive();
-                
+
                 if (jsonprimitive.isNumber())
                 {
                     return "a number (" + s + ")";
                 }
-                
+
                 if (jsonprimitive.isBoolean())
                 {
                     return "a boolean (" + s + ")";
                 }
             }
-            
+
             return s;
         }
     }
