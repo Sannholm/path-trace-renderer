@@ -188,10 +188,14 @@ public class Bootstrap
 
     private void onResize(long window, int width, int height)
     {
-        this.width = Math.max(1, width);
-        this.height = Math.max(1, height);
-        
-        resetRender();
+        if ((width != this.width || height != this.height)
+                && width != 0 && height != 0)
+        {
+            this.width = width;
+            this.height = height;
+            
+            resetRender();
+        }
     }
 
     private void resetRender()
@@ -304,7 +308,8 @@ public class Bootstrap
             program1.setUniform("invViewProjMatrix", invViewProjMatrix);
             program1.setUniform("camPos", cameraTransform.getPos());
             //program1.setUniform("stratifiedGridIndices", generateStratifiedGridIndices());
-            
+            program1.use();
+
             final int WORKGROUP_SIZE = 16;
             final int numGroupsX = MathUtils.nextPoT(FastMath.fastCeil((float)mainFrameBufferTex.getWidth() / WORKGROUP_SIZE));
             final int numGroupsY = MathUtils.nextPoT(FastMath.fastCeil((float)mainFrameBufferTex.getHeight() / WORKGROUP_SIZE));
@@ -318,23 +323,21 @@ public class Bootstrap
             System.out.println("Compute: " + elapsed + " (" + totalComputeTime / numPasses + ") us (" + numPasses + ")");
             
             GLAPI.memoryBarrier(GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-            
-            
-            
-            FrameBuffer.unBind();
-            GLAPI.setViewport(0, 0, width, height);
-            
-            mainFrameBufferTex.bind(0);
-            
-            final ShaderProgram program2 = shaderManager.getProgram("post_composite");
-            program2.setUniform("tex", 0);
-            //program2.setUniform("exposure", FastMath.sin((float)timeElapsed * 2) * 0.5F + 0.5F);
-            program2.setUniform("exposure", 1F);
-            program2.use();
-            
-            FullscreenQuadRenderer.render();
-            
-            Texture2D.unbind(0);
         }
+        
+        FrameBuffer.unBind();
+        GLAPI.setViewport(0, 0, width, height);
+        
+        mainFrameBufferTex.bind(0);
+        
+        final ShaderProgram program2 = shaderManager.getProgram("post_composite");
+        program2.setUniform("tex", 0);
+        //program2.setUniform("exposure", FastMath.sin((float)timeElapsed * 2) * 0.5F + 0.5F);
+        program2.setUniform("exposure", 1F);
+        program2.use();
+        
+        FullscreenQuadRenderer.render();
+        
+        Texture2D.unbind(0);
     }
 }
