@@ -42,6 +42,86 @@ public class Matrix4
         this.m32 = m32;
         this.m33 = m33;
     }
+
+    public float m00()
+    {
+        return m00;
+    }
+
+    public float m01()
+    {
+        return m01;
+    }
+    
+    public float m02()
+    {
+        return m02;
+    }
+    
+    public float m03()
+    {
+        return m03;
+    }
+    
+    public float m10()
+    {
+        return m10;
+    }
+    
+    public float m11()
+    {
+        return m11;
+    }
+    
+    public float m12()
+    {
+        return m12;
+    }
+    
+    public float m13()
+    {
+        return m13;
+    }
+    
+    public float m20()
+    {
+        return m20;
+    }
+    
+    public float m21()
+    {
+        return m21;
+    }
+    
+    public float m22()
+    {
+        return m22;
+    }
+    
+    public float m23()
+    {
+        return m23;
+    }
+    
+    public float m30()
+    {
+        return m30;
+    }
+    
+    public float m31()
+    {
+        return m31;
+    }
+    
+    public float m32()
+    {
+        return m32;
+    }
+    
+    public float m33()
+    {
+        return m33;
+    }
     
     public Vector4 getC0()
     {

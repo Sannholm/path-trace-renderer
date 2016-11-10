@@ -60,8 +60,11 @@ uniform vec4 randInit;
 uniform float time;
 uniform int numPasses;
 
+uniform vec4 cam00;
+uniform vec4 cam10;
+uniform vec4 cam01;
+uniform vec4 cam11;
 uniform vec3 camPos;
-uniform mat4 invViewProjMatrix;
 
 uint pixelIndex;
 uint sampleIndex;
@@ -94,7 +97,7 @@ Ray makeRay(vec3 origin, vec3 dir)
 
 AABB makeAABB(vec3 center, vec3 size, Material material)
 {
-	return AABB(center - size / 2, center + size / 2, material);
+	return AABB(center - size * 0.5, center + size * 0.5, material);
 }
 
 uvec4 state;
@@ -152,31 +155,25 @@ vec2 randomStratifiedOffset()
 	return (gridCoord + vec2(rand(), rand())) / STRATIFIED_GRID_SIZE;
 }
 
-void createNormalCoordSystem(vec3 N, out vec3 Nt, out vec3 Nb)
+mat3 createNormalCoordSystem(vec3 N)
 {
+	vec3 Nt;
     if (abs(N.x) > abs(N.y))
-        Nt = vec3(N.z, 0, -N.x) / sqrt(N.x * N.x + N.z * N.z);
+        Nt = vec3(N.z, 0, -N.x) / sqrt(dot(N.xz, N.xz));
     else
-        Nt = vec3(0, -N.z, N.y) / sqrt(N.y * N.y + N.z * N.z);
-    Nb = cross(N, Nt);
+        Nt = vec3(0, -N.z, N.y) / sqrt(dot(N.yz, N.yz));
+    vec3 Nb = cross(N, Nt);
+    return transpose(mat3(Nb, N, Nt));
 }
 
 vec3 randomHemispherePointCosineWeighted(vec3 dir)
 {
 	float u1 = rand();
-	float u2 = rand();
-	float theta = 2 * M_PI * u2;
+	float theta = 2 * M_PI * rand();
 	vec2 disk = vec2(sin(theta), cos(theta)) * sqrt(1 - u1);
 	vec3 v = vec3(disk.x, sqrt(u1), disk.y);
 
-	vec3 Nt, Nb;
-	createNormalCoordSystem(dir, Nt, Nb);
-
-	return vec3(
-		v.x * Nb.x + v.y * dir.x + v.z * Nt.x,
-		v.x * Nb.y + v.y * dir.y + v.z * Nt.y,
-		v.x * Nb.z + v.y * dir.z + v.z * Nt.z
-	);
+	return v * createNormalCoordSystem(dir);
 }
 
 /*vec3 randomHemispherePointCosineWeightedStratified(vec3 dir)
@@ -186,14 +183,7 @@ vec3 randomHemispherePointCosineWeighted(vec3 dir)
 	float phi = 2 * M_PI * stratRand.y;
 	vec3 v = vec3(sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi));
 
-	vec3 Nt, Nb;
-	createNormalCoordSystem(dir, Nt, Nb);
-
-	return vec3(
-		v.x * Nb.x + v.y * dir.x + v.z * Nt.x,
-		v.x * Nb.y + v.y * dir.y + v.z * Nt.y,
-		v.x * Nb.z + v.y * dir.z + v.z * Nt.z
-	);
+	return v * createNormalCoordSystem(dir);
 }*/
 
 Intersection intersectSphere(Sphere s, Ray r)
@@ -233,6 +223,7 @@ Intersection intersectAABB(AABB aabb, Ray r)
     {
     	hitPos = r.origin + r.dir * tNear;
     	
+    	// TODO: Optimize
     	if (tMin.x > tMin.y && tMin.x > tMin.z)
         {
             hitNormal = vec3(-sign(r.dir.x), 0, 0);
@@ -256,7 +247,7 @@ Intersection closestHit(Ray ray, Intersection prev, Intersection new)
 	{
 		if (!prev.hit)
 			return new;
-		
+
 		vec3 diffNew = new.pos - ray.origin;
 		vec3 diffPrev = prev.pos - ray.origin;
 		if (dot(diffNew, diffNew) < dot(diffPrev, diffPrev))
@@ -264,7 +255,7 @@ Intersection closestHit(Ray ray, Intersection prev, Intersection new)
 			return new;
 		}
 	}
-	
+
 	return prev;
 }
 
@@ -432,21 +423,13 @@ vec3 calculateColor(Ray startRay)
 void main()
 {
 	ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
-	if (coord.x >= framebufferSize.x || coord.y >= framebufferSize.y)
+	if (any(greaterThanEqual(coord, framebufferSize)))
 		return;
 	
+	vec2 framebufferSizeInv = 1 / framebufferSize;
 	pixelIndex = gl_GlobalInvocationID.y * uint(framebufferSize.x) + gl_GlobalInvocationID.x;
 	initRand();
 	//stratifiedGridIndexOffset = uint(rand() * 0xFFFFFFFFu);
-
-	vec4 ray00 = vec4(-1, -1, 0, 1) * invViewProjMatrix;
-	ray00 /= ray00.w;
-	vec4 ray10 = vec4(1, -1, 0, 1) * invViewProjMatrix;
-	ray10 /= ray10.w;
-	vec4 ray01 = vec4(-1, 1, 0, 1) * invViewProjMatrix;
-	ray01 /= ray01.w;
-	vec4 ray11 = vec4(1, 1, 0, 1) * invViewProjMatrix;
-	ray11 /= ray11.w;
 	
 	vec3 color = vec3(0);
 	for(int i = 0; i < SAMPLES_PER_PIXEL; i++)
@@ -454,8 +437,8 @@ void main()
 		sampleIndex = i;
 		//stratifiedGridDimension = 0;
 
-		vec2 uv = (coord + randomStratifiedOffset()) / framebufferSize;
-		vec3 dir = normalize(mix(mix(ray00.xyz, ray01.xyz, uv.y), mix(ray10.xyz, ray11.xyz, uv.y), uv.x));
+		vec2 uv = (coord + randomStratifiedOffset()) * framebufferSizeInv;
+		vec3 dir = normalize(mix(mix(cam00.xyz, cam01.xyz, uv.y), mix(cam10.xyz, cam11.xyz, uv.y), uv.x));
 	
 		color += calculateColor(makeRay(camPos, dir));
 	}

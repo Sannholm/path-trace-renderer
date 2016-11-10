@@ -1,17 +1,30 @@
 package benjaminsannholm.util.opengl.shader;
 
+import static org.lwjgl.system.MemoryStack.stackPush;
+import static org.lwjgl.system.MemoryUtil.memAlloc;
+import static org.lwjgl.system.MemoryUtil.memFree;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import org.apache.commons.io.IOUtils;
+import org.lwjgl.opengl.GL41;
+import org.lwjgl.system.MemoryStack;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,6 +32,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
 
+import benjaminsannholm.util.opengl.GLAPI;
 import benjaminsannholm.util.opengl.shader.Shader.ShaderCompilationException;
 import benjaminsannholm.util.opengl.shader.Shader.Type;
 import benjaminsannholm.util.opengl.shader.ShaderProgram.ShaderProgramLinkException;
@@ -31,6 +45,7 @@ public class ShaderManager implements ShaderLoader
     private static final Logger LOGGER = LoggerFactory.getLogger(ShaderManager.class);
 
     private static final String VERSION_HEADER_PREFIX = "#version ";
+    private static final boolean PRINT_DEBUG = true;
 
     private final ResourceLocator shaderLocator;
     private final String versionHeader;
@@ -82,6 +97,38 @@ public class ShaderManager implements ShaderLoader
                 {
                     for (Shader shader : shaders)
                         shader.dispose();
+                }
+                
+                if (PRINT_DEBUG)
+                {
+                    final Path folderPath = Paths.get("shader_program_debug");
+                    Files.createDirectories(folderPath);
+                    
+                    final ByteBuffer binary = memAlloc(GLAPI.getProgrami(program.getHandle(), GL41.GL_PROGRAM_BINARY_LENGTH));
+                    try (MemoryStack stack = stackPush())
+                    {
+                        final IntBuffer length = stack.mallocInt(1);
+                        final IntBuffer format = stack.mallocInt(1);
+
+                        program.getBinary(length, format, binary);
+                        binary.limit(length.get(0));
+
+                        try (FileChannel channel = FileChannel.open(folderPath.resolve(name + ".bin"), StandardOpenOption.WRITE, StandardOpenOption.CREATE))
+                        {
+                            channel.write(binary);
+                        }
+                    }
+                    finally
+                    {
+                        memFree(binary);
+                    }
+
+                    if (vertexSource.isPresent())
+                        Files.write(folderPath.resolve(name + ".vert"), vertexSource.get().getBytes(StandardCharsets.UTF_8));
+                    if (fragmentSource.isPresent())
+                        Files.write(folderPath.resolve(name + ".frag"), fragmentSource.get().getBytes(StandardCharsets.UTF_8));
+                    if (computeSource.isPresent())
+                        Files.write(folderPath.resolve(name + ".comp"), computeSource.get().getBytes(StandardCharsets.UTF_8));
                 }
             }
             catch (ShaderCompilationException | ShaderProgramLinkException | IOException e)

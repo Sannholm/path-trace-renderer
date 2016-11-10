@@ -11,24 +11,24 @@ import com.google.common.base.Preconditions;
 public class ShaderComposer
 {
     private final ShaderLoader loader;
-    
+
     private final List<String> sources = new ArrayList<>();
-    
+
     public ShaderComposer(ShaderLoader loader)
     {
         this.loader = Preconditions.checkNotNull(loader, "loader");
     }
-    
+
     public ShaderComposer append(String string)
     {
         sources.add(string);
         return this;
     }
-    
+
     public String compose() throws IOException
     {
         final StringBuilder stringBuilder = new StringBuilder(1000);
-
+        
         for (String source : sources)
         {
             try (BufferedReader reader = new BufferedReader(new StringReader(source)))
@@ -36,6 +36,7 @@ public class ShaderComposer
                 String line;
                 while ((line = reader.readLine()) != null)
                 {
+                    line = line.trim();
                     if (!line.isEmpty() && !line.startsWith("//"))
                     {
                         if (line.startsWith("#include "))
@@ -51,7 +52,7 @@ public class ShaderComposer
                 }
             }
         }
-
+        
         return stringBuilder.toString();
     }
 }

@@ -2,6 +2,7 @@
 .settings/
 bin/
 build/
+shader_program_debug/
 .classpath
 .project
 hs_err_pid*.log
