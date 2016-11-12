@@ -1,9 +1,5 @@
 package benjaminsannholm.util.opengl.shader.uniforms;
 
-import static org.lwjgl.system.MemoryStack.stackPush;
-
-import org.lwjgl.system.MemoryStack;
-
 import benjaminsannholm.util.math.Vector3;
 import benjaminsannholm.util.opengl.GLAPI;
 import benjaminsannholm.util.opengl.shader.ShaderProgram;
@@ -15,14 +11,11 @@ public class Vector3Uniform extends Uniform<Vector3>
     {
         super(parent, name);
     }
-    
+
     @Override
     protected void upload()
     {
         final Vector3 vec = getValue();
-        try (MemoryStack stack = stackPush())
-        {
-            GLAPI.setUniform3f(getLocation(), stack.floats(vec.getX(), vec.getY(), vec.getZ()));
-        }
+        GLAPI.setUniform3f(getLocation(), vec.getX(), vec.getY(), vec.getZ());
     }
 }

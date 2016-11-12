@@ -109,7 +109,7 @@ void initRand()
 
 float rand()
 {
-	return randomTausLCG(state);
+	return nextTausLCG(state);
 }
 
 //const bool STRATIFIED_SAMPLING = true;

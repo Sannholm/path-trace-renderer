@@ -109,7 +109,7 @@ public class Bootstrap
     private Vector4 cam00, cam10, cam01, cam11;
 
     private int numPasses;
-    private long totalComputeTime;
+    private long totalFrameTime;
 
     public void run()
     {
@@ -208,7 +208,7 @@ public class Bootstrap
         mainFrameBufferTex = null;
 
         numPasses = 0;
-        totalComputeTime = 0;
+        totalFrameTime = 0;
         
         updateCamera();
     }
@@ -288,20 +288,32 @@ public class Bootstrap
 
     private void render()
     {
+        final Stopwatch swFrame = Stopwatch.createUnstarted();
+        final Stopwatch swPass = Stopwatch.createUnstarted();
+        final Stopwatch swSetup = Stopwatch.createUnstarted();
+        final Stopwatch swCompute = Stopwatch.createUnstarted();
+        final Stopwatch swBarrier = Stopwatch.createUnstarted();
+        final Stopwatch swComposite = Stopwatch.createUnstarted();
+        
         if (mainFrameBufferTex == null)
         {
             mainFrameBufferTex = Texture2D.builder(width, height)
                     .format(Format.RGBA32F)
                     .build();
         }
-
+        
+        swFrame.start();
+        swPass.start();
+        
         final int MAX_PASSES = 10;
         if (numPasses < MAX_PASSES)
         {
             numPasses++;
             
+            swSetup.start();
+            
             mainFrameBufferTex.bindImage(0, Access.WRITE, Format.RGBA32F);
-
+            
             final ShaderProgram program1 = shaderManager.getProgram("compute_draw");
             program1.setUniform("framebuffer", 0);
             program1.setUniform("framebufferSize", Vector2.create(mainFrameBufferTex.getWidth(), mainFrameBufferTex.getHeight()));
@@ -315,36 +327,55 @@ public class Bootstrap
             program1.setUniform("camPos", cameraTransform.getPos());
             //program1.setUniform("stratifiedGridIndices", generateStratifiedGridIndices());
             program1.use();
-
+            
             final int WORKGROUP_SIZE = 16;
             final int numGroupsX = MathUtils.nextPoT(FastMath.fastCeil((float)mainFrameBufferTex.getWidth() / WORKGROUP_SIZE));
             final int numGroupsY = MathUtils.nextPoT(FastMath.fastCeil((float)mainFrameBufferTex.getHeight() / WORKGROUP_SIZE));
             
-            final Stopwatch sw = Stopwatch.createStarted();
+            swSetup.stop();
             
+            swCompute.start();
             program1.dispatchCompute(numGroupsX, numGroupsY, 1);
+            swCompute.stop();
             
-            final long elapsed = sw.elapsed(TimeUnit.MICROSECONDS);
-            totalComputeTime += elapsed;
-            System.out.println("Compute: " + elapsed + " (" + totalComputeTime / numPasses + ") us (" + numPasses + ")");
-            
+            swBarrier.start();
             GLAPI.memoryBarrier(GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+            swBarrier.stop();
         }
         
-        FrameBuffer.unBind();
-        GLAPI.setViewport(0, 0, width, height);
+        swPass.stop();
+        swComposite.start();
         
-        mainFrameBufferTex.bind(0);
+        if (numPasses >= MAX_PASSES || true)
+        {
+            FrameBuffer.unBind();
+            GLAPI.setViewport(0, 0, width, height);
+            
+            mainFrameBufferTex.bind(0);
+            
+            final ShaderProgram program2 = shaderManager.getProgram("post_composite");
+            program2.setUniform("tex", 0);
+            //program2.setUniform("exposure", FastMath.sin((float)timeElapsed * 2) * 0.5F + 0.5F);
+            program2.setUniform("exposure", 1F);
+            program2.use();
+            
+            FullscreenQuadRenderer.render();
+        }
         
-        final ShaderProgram program2 = shaderManager.getProgram("post_composite");
-        program2.setUniform("tex", 0);
-        //program2.setUniform("exposure", FastMath.sin((float)timeElapsed * 2) * 0.5F + 0.5F);
-        program2.setUniform("exposure", 1F);
-        program2.use();
+        swComposite.stop();
+        swFrame.stop();
         
-        FullscreenQuadRenderer.render();
-        
-        Texture2D.unbind(0);
+        if (numPasses < MAX_PASSES)
+        {
+            final long frameTime = swFrame.elapsed(TimeUnit.NANOSECONDS);
+            totalFrameTime += frameTime;
+            System.out.println("Frame: " + (int)(frameTime * 0.001) + " (" + (int)(totalFrameTime * 0.001 / numPasses) + ") us (#" + numPasses + ")"
+                    + "\n  Pass: " + swPass.elapsed(TimeUnit.MICROSECONDS)
+                    + "\n    Setup: " + swSetup.elapsed(TimeUnit.MICROSECONDS)
+                    + "\n    Compute: " + swCompute.elapsed(TimeUnit.NANOSECONDS) * 0.001
+                    + "\n    Barrier: " + swBarrier.elapsed(TimeUnit.NANOSECONDS) * 0.001
+                    + "\n  Composite: " + swComposite.elapsed(TimeUnit.MICROSECONDS));
+        }
     }
     
     /*private static final int MAX_STRATIFIED_DIMENSIONS = 5;
