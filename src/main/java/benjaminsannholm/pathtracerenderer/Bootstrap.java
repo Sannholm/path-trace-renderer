@@ -369,7 +369,7 @@ public class Bootstrap
         {
             final long frameTime = swFrame.elapsed(TimeUnit.NANOSECONDS);
             totalFrameTime += frameTime;
-            System.out.println("Frame: " + (int)(frameTime * 0.001) + " (" + (int)(totalFrameTime * 0.001 / numPasses) + ") us (#" + numPasses + ")"
+            System.out.println("Frame (" + width + "x" + height + "): " + (int)(frameTime * 0.001) + " (" + (int)(totalFrameTime * 0.001 / numPasses) + ") us (#" + numPasses + ")"
                     + "\n  Pass: " + swPass.elapsed(TimeUnit.MICROSECONDS)
                     + "\n    Setup: " + swSetup.elapsed(TimeUnit.MICROSECONDS)
                     + "\n    Compute: " + swCompute.elapsed(TimeUnit.NANOSECONDS) * 0.001

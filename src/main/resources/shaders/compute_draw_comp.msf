@@ -21,6 +21,7 @@ struct Sphere
 {
 	vec3 center;
 	float radius;
+	float area;
 	Material material;
 };
 
@@ -28,6 +29,7 @@ struct AABB
 {
 	vec3 min;
 	vec3 max;
+	float area;
 	Material material;
 };
 
@@ -40,18 +42,20 @@ struct Intersection
 };
 
 Ray makeRay(vec3 origin, vec3 dir);
+Sphere makeSphere(vec3 center, float radius, Material material);
 AABB makeAABB(vec3 center, vec3 size, Material material);
 
 layout(local_size_x = 16, local_size_y = 16) in;
 
-const float EPSILON = 0.0001;
-const float M_PI = 3.1415926535897932384626433832795;
+const float INFINITY = 1.0 / 0.0;
+const float EPSILON = 1e-4;
+const float PI = 3.1415926535897932384626433832795;
 
 const Intersection NO_INTERSECTION = Intersection(false, vec3(0), vec3(0), Material(0, vec3(0), vec3(0)));
 
 const bool PROGRESSIVE = true;
 const int SAMPLES_PER_PIXEL = 100;
-const int NUM_BOUNCES = 5;
+const int NUM_BOUNCES = 1;
 
 layout(rgba32f) uniform image2D framebuffer;
 uniform vec2 framebufferSize;
@@ -70,22 +74,22 @@ uint pixelIndex;
 uint sampleIndex;
 
 Sphere spheres[] = Sphere[](
-	Sphere(vec3(0,-3,3), 2, Material(BRDF_DIFFUSE, vec3(0), vec3(1))),
-	Sphere(vec3(-3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1))),
-	Sphere(vec3(3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1)))
+	makeSphere(vec3(0,-3,3), 2, Material(BRDF_DIFFUSE, vec3(0), vec3(1))),
+	makeSphere(vec3(-3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1))),
+	makeSphere(vec3(3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1)))
 	
-	//Sphere(vec3(0,0,0), 2, Material(BRDF_DIFFUSE, vec3(0), vec3(0.18)))
+	//makeSphere(vec3(0,0,0), 2, Material(BRDF_DIFFUSE, vec3(0), vec3(0.18)))
 );
 
 AABB aabbs[] = AABB[](
-	makeAABB(vec3(0, -5, 0), vec3(10, 0.1, 10), Material(BRDF_DIFFUSE, vec3(1), vec3(1))), // Floor
+	makeAABB(vec3(0, -5, 0), vec3(10, 0.1, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1))), // Floor
 	makeAABB(vec3(0, 0, -5), vec3(10, 10, 0.1), Material(BRDF_DIFFUSE, vec3(0), vec3(0,0,1))), // Back
 	makeAABB(vec3(-5, 0, 0), vec3(0.1, 10, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1,0,0))), // Left
 	makeAABB(vec3(5, 0, 0), vec3(0.1, 10, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(0,1,0))), // Right
 	makeAABB(vec3(0, 5, 0), vec3(10, 0.1, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1))), // Top
 	
 	makeAABB(vec3(3, -4, 0), vec3(3, 2, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1))),
-	makeAABB(vec3(0, 4.9, 0), vec3(1, 0.1, 1), Material(BRDF_DIFFUSE, vec3(0.2,0.5,1) * 30, vec3(1))) // Light
+	makeAABB(vec3(0, 4.9, 0), vec3(1, 0.1, 1), Material(BRDF_DIFFUSE, vec3(0.2,0.5,2) * 10, vec3(1))) // Light
 	
 	//makeAABB(vec3(0, 0, 0), vec3(0, 0, 0), Material(BRDF_DIFFUSE, vec3(0), vec3(0)))
 );
@@ -95,21 +99,44 @@ Ray makeRay(vec3 origin, vec3 dir)
 	return Ray(origin, dir, 1 / dir);
 }
 
+Sphere makeSphere(vec3 center, float radius, Material material)
+{
+	float area = 4 * PI * radius * radius;
+	return Sphere(center, radius, area, material);
+}
+
 AABB makeAABB(vec3 center, vec3 size, Material material)
 {
-	return AABB(center - size * 0.5, center + size * 0.5, material);
+	float area = 2 * (size.y * size.z + size.x * size.z + size.x * size.y);
+	return AABB(center - size * 0.5, center + size * 0.5, area, material);
 }
 
 uvec4 state;
 
 void initRand()
 {
-	state = 128 + uvec4(randInit * 0xFFFFFFFFu) + pixelIndex;
+	state = 128 + pixelIndex + uvec4(randInit * 0xFFFFFFFFu);
+}
+
+uint randInt()
+{
+	return nextTausLCG(state);
+}
+
+uint randInt(uint bound)
+{
+	uint threshold = -bound % bound;
+	while (true)
+	{
+		uint r = randInt();
+		if (r >= threshold)
+			return r % bound;
+	}
 }
 
 float rand()
 {
-	return nextTausLCG(state);
+	return ldexp(randInt(), -32);
 }
 
 //const bool STRATIFIED_SAMPLING = true;
@@ -166,12 +193,19 @@ mat3 createNormalCoordSystem(vec3 N)
     return transpose(mat3(Nb, N, Nt));
 }
 
+vec3 randomSpherePointUniform()
+{
+	float u = rand() * 2 - 1;
+	float theta = 2 * PI * rand();
+	return vec3(vec2(cos(theta), sin(theta)) * sqrt(1 - u * u), u);
+}
+
 vec3 randomHemispherePointCosineWeighted(vec3 dir)
 {
 	float u1 = rand();
-	float theta = 2 * M_PI * rand();
+	float theta = 2 * PI * rand();
 	vec2 disk = vec2(sin(theta), cos(theta)) * sqrt(1 - u1);
-	vec3 v = vec3(disk.x, sqrt(u1), disk.y);
+	vec3 v = vec3(disk.xy, sqrt(u1)).xzy;
 
 	return v * createNormalCoordSystem(dir);
 }
@@ -180,105 +214,80 @@ vec3 randomHemispherePointCosineWeighted(vec3 dir)
 {
 	vec2 stratRand = randomStratifiedOffset();
 	float theta = acos(sqrt(1 - stratRand.x));
-	float phi = 2 * M_PI * stratRand.y;
+	float phi = 2 * PI * stratRand.y;
 	vec3 v = vec3(sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi));
 
 	return v * createNormalCoordSystem(dir);
 }*/
 
-Intersection intersectSphere(Sphere s, Ray r)
+void intersectSphere(Sphere s, Ray r, float minDist, inout float maxDist, inout Intersection inter)
 {
 	vec3 rc = r.origin - s.center;
 	float c = dot(rc, rc) - s.radius * s.radius;
 	float b = dot(r.dir, rc);
 	float d = b * b - c;
 	float t = -b - sqrt(abs(d));
-	
+
     bool hit = d >= 0 && t >= 0;
-    vec3 hitPos = vec3(0);
-    vec3 hitNormal = vec3(0);
-    
-    if (hit)
-    {
-    	hitPos = r.origin + r.dir * t;
-    	hitNormal = normalize(hitPos - s.center);
-	}
-	
-	return Intersection(hit, hitPos, hitNormal, s.material);
+	bool inRange = t >= minDist && t <= maxDist;
+    if (!hit || !inRange)
+    	return;
+
+	vec3 hitPos = r.origin + r.dir * t;
+	vec3 hitNormal = normalize(hitPos - s.center);
+
+	inter = Intersection(true, hitPos, hitNormal, s.material);
+	maxDist = t;
 }
 
-Intersection intersectAABB(AABB aabb, Ray r)
+void intersectAABB(AABB aabb, Ray r, float minDist, inout float maxDist, inout Intersection inter)
 {
 	vec3 t1 = (aabb.min - r.origin) * r.invDir;
 	vec3 t2 = (aabb.max - r.origin) * r.invDir;
  	vec3 tMin = min(t1, t2);
     float tNear = max(max(tMin.x, tMin.y), tMin.z);
     float tFar = min(min(max(t1.x, t2.x), max(t1.y, t2.y)), max(t1.z, t2.z));
-	
+
     bool hit = tFar > max(0, tNear);
-    vec3 hitPos = vec3(0);
-    vec3 hitNormal = vec3(0);
-    
-    if (hit)
-    {
-    	hitPos = r.origin + r.dir * tNear;
-    	
-    	// TODO: Optimize
-    	if (tMin.x > tMin.y && tMin.x > tMin.z)
-        {
-            hitNormal = vec3(-sign(r.dir.x), 0, 0);
-        }
-        else if (tMin.y > tMin.x && tMin.y > tMin.z)
-        {
-            hitNormal = vec3(0, -sign(r.dir.y), 0);
-        }
-        else
-        {
-            hitNormal = vec3(0, 0, -sign(r.dir.z));
-        }
+	bool inRange = tNear >= minDist && tNear <= maxDist;
+    if (!hit || !inRange)
+    	return;
+
+	vec3 hitPos = r.origin + r.dir * tNear;
+	vec3 hitNormal = vec3(0);
+
+	// TODO: Optimize
+	if (tMin.x > tMin.y && tMin.x > tMin.z)
+	{
+		hitNormal = vec3(-sign(r.dir.x), 0, 0);
 	}
-	
-	return Intersection(hit, hitPos, hitNormal, aabb.material);
+	else if (tMin.y > tMin.x && tMin.y > tMin.z)
+	{
+		hitNormal = vec3(0, -sign(r.dir.y), 0);
+	}
+	else
+	{
+		hitNormal = vec3(0, 0, -sign(r.dir.z));
+	}
+
+	inter = Intersection(true, hitPos, hitNormal, aabb.material);
+	maxDist = tNear;
 }
 
-Intersection closestHit(Ray ray, Intersection prev, Intersection new)
+Intersection intersectScene(Ray ray, float minDist, float maxDist)
 {
-	if (new.hit)
-	{
-		if (!prev.hit)
-			return new;
+	Intersection inter = NO_INTERSECTION;
+	for (int i = 0; i < spheres.length(); i++)
+		intersectSphere(spheres[i], ray, minDist, maxDist, inter);
+	for (int i = 0; i < aabbs.length(); i++)
+		intersectAABB(aabbs[i], ray, minDist, maxDist, inter);
 
-		vec3 diffNew = new.pos - ray.origin;
-		vec3 diffPrev = prev.pos - ray.origin;
-		if (dot(diffNew, diffNew) < dot(diffPrev, diffPrev))
-		{
-			return new;
-		}
-	}
-
-	return prev;
+	return inter;
 }
 
 Intersection intersectScene(Ray ray)
 {
-	Intersection inter = NO_INTERSECTION;
-	for (int i = 0; i < spheres.length(); i++)
-		inter = closestHit(ray, inter, intersectSphere(spheres[i], ray));
-	for (int i = 0; i < aabbs.length(); i++)
-		inter = closestHit(ray, inter, intersectAABB(aabbs[i], ray));
-
-	return inter;
-}
-
-Intersection intersectScene(Ray ray, float maxDistSquared)
-{
-	Intersection inter = intersectScene(ray);
-
-	vec3 diff = inter.pos - ray.origin;
-	if (dot(diff, diff) > maxDistSquared)
-		return NO_INTERSECTION;
-	
-	return inter;
+	return intersectScene(ray, 0, INFINITY);
 }
 
 vec3 sampleBRDF(Material material, vec3 normal, vec3 Lo)
@@ -299,7 +308,7 @@ vec3 evaluateBRDF(Material material, vec3 Li, vec3 normal, vec3 Lo)
 	{
 		default:
 		case BRDF_DIFFUSE:
-			return material.albedo / M_PI;
+			return material.albedo / PI;
 		case BRDF_SPECULAR:
 			return material.albedo / dot(normal, Li); // Should be specular instead of albedo
 	}
@@ -311,7 +320,7 @@ float evaluatePDF(Material material, vec3 Li, vec3 normal, vec3 Lo)
 	{
 		default:
 		case BRDF_DIFFUSE:
-			return dot(normal, Li) / M_PI;
+			return dot(normal, Li) / PI;
 		case BRDF_SPECULAR:
 			return 1;
 	}
@@ -323,25 +332,26 @@ vec3 background(vec3 dir)
 	return vec3(max(0, dot(dir, vec3(0,-1,0)))) * vec3(0.2,0.2,1);
 }
 
-vec3 lightContribution(Material material, Material lightMaterial, vec3 pos, vec3 lightPos, vec3 normal, vec3 Lo)
+vec3 lightContribution(Material material, Material lightMaterial, vec3 pos, vec3 lightPos, float lightPdf, vec3 normal, vec3 lightNormal, vec3 Lo)
 {
-	vec3 Li = normalize(lightPos - pos);
+	vec3 lightPosDiff = lightPos - pos;
+	vec3 Li = normalize(lightPosDiff);
 
-	float cosine = max(0, dot(normal, Li));
+	float cosine = max(0, dot(normal, Li)) * max(0, dot(lightNormal, -Li));
 	if (cosine <= 0)
 		return vec3(0);
 
-	vec3 lightPosDiff = lightPos - pos;
-	Intersection shadowInter = intersectScene(makeRay(pos + normal * EPSILON, Li), dot(lightPosDiff, lightPosDiff));
+	float distSquared = dot(lightPosDiff, lightPosDiff);
+	Intersection shadowInter = intersectScene(makeRay(pos, Li), EPSILON, sqrt(distSquared) * (1 - EPSILON));
 	if (shadowInter.hit)
 		return vec3(0);
 
 	vec3 brdf = evaluateBRDF(material, Li, normal, Lo);
 	float pdf = evaluatePDF(material, Li, normal, Lo);
-	return lightMaterial.radiance * brdf * cosine / pdf;
+	return lightMaterial.radiance * brdf * cosine / distSquared / lightPdf;
 }
 
-vec3 directLighting(Material material, vec3 pos, vec3 normal, vec3 Lo)
+vec3 directIllumination(Material material, vec3 pos, vec3 normal, vec3 Lo)
 {
 	vec3 light = vec3(0);
 
@@ -350,8 +360,10 @@ vec3 directLighting(Material material, vec3 pos, vec3 normal, vec3 Lo)
 		Sphere sphere = spheres[i];
 		if (any(greaterThan(sphere.material.radiance, vec3(0))))
 		{
-			vec3 lightPos = sphere.center;
-			light += lightContribution(material, sphere.material, pos, lightPos, normal, Lo);
+			vec3 lightNormal = randomSpherePointUniform();
+			vec3 lightPos = sphere.center + lightNormal * sphere.radius;
+			float lightPdf = 1 / sphere.area;
+			light += lightContribution(material, sphere.material, pos, lightPos, lightPdf, normal, lightNormal, Lo);
 		}
 	}
 	for (int i = 0; i < aabbs.length(); i++)
@@ -359,10 +371,40 @@ vec3 directLighting(Material material, vec3 pos, vec3 normal, vec3 Lo)
 		AABB aabb = aabbs[i];
 		if (any(greaterThan(aabb.material.radiance, vec3(0))))
 		{
-			//vec3 lightPos = (aabb.max + aabb.min) * 0.5;
-			vec3 lightPos = vec3(mix(aabb.min.xz, aabb.max.xz, rand()), aabb.max.y + EPSILON).xzy;
+			vec3 lightPos = vec3(0);
+			vec3 lightNormal = vec3(0);
 
-			light += lightContribution(material, aabb.material, pos, lightPos, normal, Lo);
+			uint side = randInt(6);
+			switch (side)
+			{
+				case 0: // Bottom
+					lightPos = vec3(mix(aabb.min.xz, aabb.max.xz, rand()), aabb.min.y).xzy;
+					lightNormal = vec3(0, -1, 0);
+					break;
+				case 1: // Top
+					lightPos = vec3(mix(aabb.min.xz, aabb.max.xz, rand()), aabb.max.y).xzy;
+					lightNormal = vec3(0, 1, 0);
+					break;
+				case 2: // Left
+					lightPos = vec3(mix(aabb.min.yz, aabb.max.yz, rand()), aabb.min.x).zxy;
+					lightNormal = vec3(-1, 0, 0);
+					break;
+				case 3: // Right
+					lightPos = vec3(mix(aabb.min.yz, aabb.max.yz, rand()), aabb.max.x).zxy;
+					lightNormal = vec3(1, 0, 0);
+					break;
+				case 4: // Back
+					lightPos = vec3(mix(aabb.min.xy, aabb.max.xy, rand()), aabb.min.z).xyz;
+					lightNormal = vec3(0, 0, -1);
+					break;
+				case 5: // Front
+					lightPos = vec3(mix(aabb.min.xy, aabb.max.xy, rand()), aabb.max.z).xyz;
+					lightNormal = vec3(0, 0, 1);
+					break;
+			}
+
+			float lightPdf = 1 / aabb.area;
+			light += lightContribution(material, aabb.material, pos, lightPos, lightPdf, normal, lightNormal, Lo);
 		}
 	}
 
@@ -378,7 +420,7 @@ vec3 calculateColor(Ray startRay)
 	bool specularBounce = false;
 	for (int bounces = 0; bounces <= NUM_BOUNCES; bounces++)
 	{
-		Intersection inter = intersectScene(ray);
+		Intersection inter = intersectScene(ray, EPSILON, INFINITY);
 
 		if (!inter.hit) // No intersection -> Background
 		{
@@ -393,7 +435,7 @@ vec3 calculateColor(Ray startRay)
 
 		if (inter.material.brdfType != BRDF_SPECULAR)
 		{
-			color += throughput * directLighting(inter.material, inter.pos, inter.normal, -ray.dir);
+			color += throughput * directIllumination(inter.material, inter.pos, inter.normal, -ray.dir);
 		}
 
 		if (bounces == NUM_BOUNCES)
@@ -405,7 +447,7 @@ vec3 calculateColor(Ray startRay)
 		if (brdf == vec3(0) || pdf == 0)
 			break;
 
-		throughput *= brdf * abs(dot(inter.normal, Li)) / pdf;
+		throughput *= brdf * (abs(dot(inter.normal, Li)) / pdf);
 
 		// Russian Roulette
 		float rrProb = max(throughput.r, max(throughput.g, throughput.b));
@@ -413,7 +455,7 @@ vec3 calculateColor(Ray startRay)
 			break;
 		throughput *= 1 / rrProb; // Re-add lost energy for terminated paths
 
-		ray = makeRay(inter.pos + inter.normal * EPSILON, Li);
+		ray = makeRay(inter.pos, Li);
 		specularBounce = inter.material.brdfType == BRDF_SPECULAR;
 	}
 	
@@ -427,6 +469,7 @@ void main()
 		return;
 	
 	vec2 framebufferSizeInv = 1 / framebufferSize;
+	vec2 uvBase = coord * framebufferSizeInv;
 	pixelIndex = gl_GlobalInvocationID.y * uint(framebufferSize.x) + gl_GlobalInvocationID.x;
 	initRand();
 	//stratifiedGridIndexOffset = uint(rand() * 0xFFFFFFFFu);
@@ -437,7 +480,7 @@ void main()
 		sampleIndex = i;
 		//stratifiedGridDimension = 0;
 
-		vec2 uv = (coord + randomStratifiedOffset()) * framebufferSizeInv;
+		vec2 uv = uvBase + randomStratifiedOffset() * framebufferSizeInv;
 		vec3 dir = normalize(mix(mix(cam00.xyz, cam01.xyz, uv.y), mix(cam10.xyz, cam11.xyz, uv.y), uv.x));
 	
 		color += calculateColor(makeRay(camPos, dir));

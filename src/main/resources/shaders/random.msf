@@ -1,24 +1,33 @@
 // TausLCG
 
-uint TausStep(uint z, int S1, int S2, int S3, uint M)
+uint TausStep(const uint z, const int S1, const int S2, const int S3, const uint M)
 {
-    uint b = (((z << S1) ^ z) >> S2);
-    return (((z & M) << S3) ^ b);
+    uint b = ((z << S1) ^ z) >> S2;
+    return ((z & M) << S3) ^ b;
 }
 
-uint LCGStep(uint z, uint A, uint C)
+uvec3 TausStepVec(const uvec3 z, const ivec3 S1, const ivec3 S2, const ivec3 S3, const uvec3 M)
 {
-    return (A * z + C);
+    uvec3 b = ((z << S1) ^ z) >> S2;
+    return ((z & M) << S3) ^ b;
 }
 
-float nextTausLCG(inout uvec4 state)
+uint LCGStep(const uint z, const uint A, const uint C)
 {
-    state = uvec4(
-		TausStep(state.x, 13, 19, 12, 4294967294u),
-		TausStep(state.y, 2, 25, 4, 4294967288u),
-		TausStep(state.z, 3, 11, 17, 4294967280u),
+    return A * z + C;
+}
+
+const ivec3 TAUS_S1 = ivec3(13, 2, 3);
+const ivec3 TAUS_S2 = ivec3(19, 25, 11);
+const ivec3 TAUS_S3 = ivec3(12, 4, 17);
+const uvec3 TAUS_M = uvec3(4294967294u, 4294967288u, 4294967280u);
+
+uint nextTausLCG(inout uvec4 state)
+{
+	state = uvec4(
+		TausStepVec(state.xyz, TAUS_S1, TAUS_S2, TAUS_S3, TAUS_M),
 		LCGStep(state.w, 1664525, 1013904223u)
 	);
 
-    return 2.3283064365387e-10 * float(state.x ^ state.y ^ state.z ^ state.w);
+    return state.x ^ state.y ^ state.z ^ state.w;
 }
