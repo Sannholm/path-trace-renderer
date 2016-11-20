@@ -79,7 +79,7 @@ uint sampleIndex;
 uint nextObjectId = 0;
 
 Sphere spheres[] = Sphere[](
-	makeSphere(vec3(0,-3,3), 2, Material(BRDF_DIFFUSE, vec3(10), vec3(1))),
+	makeSphere(vec3(0,-3,3), 2, Material(BRDF_DIFFUSE, vec3(0), vec3(1))),
 	makeSphere(vec3(-3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1))),
 	makeSphere(vec3(3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1)))
 	
@@ -87,16 +87,20 @@ Sphere spheres[] = Sphere[](
 );
 
 AABB aabbs[] = AABB[](
-	makeAABB(vec3(0, -5, 0), vec3(10, 0.1, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1))), // Floor
+	// World floor
+	makeAABB(vec3(0, -6, 0), vec3(1000, 0.1, 1000), Material(BRDF_DIFFUSE, vec3(0), vec3(1))),
+
+	// Cornell box
+	makeAABB(vec3(0, -5, 0), vec3(10, 0.1, 10), Material(BRDF_DIFFUSE, vec3(10), vec3(1))), // Floor
 	makeAABB(vec3(0, 0, -5), vec3(10, 10, 0.1), Material(BRDF_DIFFUSE, vec3(0), vec3(0,0,1))), // Back
 	makeAABB(vec3(-5, 0, 0), vec3(0.1, 10, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1,0,0))), // Left
 	makeAABB(vec3(5, 0, 0), vec3(0.1, 10, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(0,1,0))), // Right
 	makeAABB(vec3(0, 5, 0), vec3(10, 0.1, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1))), // Top
 	
 	makeAABB(vec3(3, -4, 0), vec3(3, 2, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1))),
-	makeAABB(vec3(0, 4.9, 0), vec3(1, 0.1, 1), Material(BRDF_DIFFUSE, vec3(0.2,0.5,2) * 0, vec3(1))) // Light
+	makeAABB(vec3(0, 4.9, 0), vec3(1, 0.1, 1), Material(BRDF_DIFFUSE, vec3(0.2,0.5,2) * 10, vec3(1))) // Light
 	
-	//makeAABB(vec3(0, 0, 0), vec3(0, 0, 0), Material(BRDF_DIFFUSE, vec3(0), vec3(0)))
+
 );
 
 Ray makeRay(vec3 origin, vec3 dir)
@@ -331,12 +335,6 @@ float evaluatePDF(Material material, vec3 Li, vec3 normal, vec3 Lo)
 	}
 }
 
-vec3 background(vec3 dir)
-{
-	return vec3(0);
-	return vec3(max(0, dot(dir, vec3(0,-1,0)))) * vec3(0.2,0.2,1);
-}
-
 vec3 lightContribution(uint objectId, Material material, Material lightMaterial, vec3 pos, vec3 lightPos, float lightArea, vec3 normal, vec3 lightNormal, vec3 Lo)
 {
 	vec3 light = vec3(0);
@@ -446,6 +444,12 @@ vec3 directIllumination(Material material, vec3 pos, vec3 normal, vec3 Lo)
 	}
 
 	return light;
+}
+
+vec3 background(vec3 dir)
+{
+	return vec3(0);
+	return mix(vec3(0,0,0), vec3(0.2,0.4,1) * 10, pow(dot(dir, vec3(0,1,0)) * 0.5 + 0.5, 5));
 }
 
 vec3 calculateColor(Ray startRay)
