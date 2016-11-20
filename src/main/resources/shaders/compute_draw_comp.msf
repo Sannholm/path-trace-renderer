@@ -1,3 +1,4 @@
+#include math
 #include random
 
 const uint BRDF_DIFFUSE = 0;
@@ -19,6 +20,7 @@ struct Ray
 
 struct Sphere
 {
+	uint objectId;
 	vec3 center;
 	float radius;
 	float area;
@@ -27,6 +29,7 @@ struct Sphere
 
 struct AABB
 {
+	uint objectId;
 	vec3 min;
 	vec3 max;
 	float area;
@@ -35,7 +38,7 @@ struct AABB
 
 struct Intersection
 {
-	bool hit;
+	uint objectId;
 	vec3 pos;
 	vec3 normal;
 	Material material;
@@ -51,11 +54,11 @@ const float INFINITY = 1.0 / 0.0;
 const float EPSILON = 1e-4;
 const float PI = 3.1415926535897932384626433832795;
 
-const Intersection NO_INTERSECTION = Intersection(false, vec3(0), vec3(0), Material(0, vec3(0), vec3(0)));
+const Intersection NO_INTERSECTION = Intersection(-1, vec3(0), vec3(0), Material(0, vec3(0), vec3(0)));
 
 const bool PROGRESSIVE = true;
 const int SAMPLES_PER_PIXEL = 100;
-const int NUM_BOUNCES = 1;
+const int NUM_BOUNCES = 5;
 
 layout(rgba32f) uniform image2D framebuffer;
 uniform vec2 framebufferSize;
@@ -73,8 +76,10 @@ uniform vec3 camPos;
 uint pixelIndex;
 uint sampleIndex;
 
+uint nextObjectId = 0;
+
 Sphere spheres[] = Sphere[](
-	makeSphere(vec3(0,-3,3), 2, Material(BRDF_DIFFUSE, vec3(0), vec3(1))),
+	makeSphere(vec3(0,-3,3), 2, Material(BRDF_DIFFUSE, vec3(10), vec3(1))),
 	makeSphere(vec3(-3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1))),
 	makeSphere(vec3(3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1)))
 	
@@ -89,7 +94,7 @@ AABB aabbs[] = AABB[](
 	makeAABB(vec3(0, 5, 0), vec3(10, 0.1, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1))), // Top
 	
 	makeAABB(vec3(3, -4, 0), vec3(3, 2, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1))),
-	makeAABB(vec3(0, 4.9, 0), vec3(1, 0.1, 1), Material(BRDF_DIFFUSE, vec3(0.2,0.5,2) * 10, vec3(1))) // Light
+	makeAABB(vec3(0, 4.9, 0), vec3(1, 0.1, 1), Material(BRDF_DIFFUSE, vec3(0.2,0.5,2) * 0, vec3(1))) // Light
 	
 	//makeAABB(vec3(0, 0, 0), vec3(0, 0, 0), Material(BRDF_DIFFUSE, vec3(0), vec3(0)))
 );
@@ -102,13 +107,13 @@ Ray makeRay(vec3 origin, vec3 dir)
 Sphere makeSphere(vec3 center, float radius, Material material)
 {
 	float area = 4 * PI * radius * radius;
-	return Sphere(center, radius, area, material);
+	return Sphere(nextObjectId++, center, radius, area, material);
 }
 
 AABB makeAABB(vec3 center, vec3 size, Material material)
 {
 	float area = 2 * (size.y * size.z + size.x * size.z + size.x * size.y);
-	return AABB(center - size * 0.5, center + size * 0.5, area, material);
+	return AABB(nextObjectId++, center - size * 0.5, center + size * 0.5, area, material);
 }
 
 uvec4 state;
@@ -236,7 +241,7 @@ void intersectSphere(Sphere s, Ray r, float minDist, inout float maxDist, inout 
 	vec3 hitPos = r.origin + r.dir * t;
 	vec3 hitNormal = normalize(hitPos - s.center);
 
-	inter = Intersection(true, hitPos, hitNormal, s.material);
+	inter = Intersection(s.objectId, hitPos, hitNormal, s.material);
 	maxDist = t;
 }
 
@@ -270,7 +275,7 @@ void intersectAABB(AABB aabb, Ray r, float minDist, inout float maxDist, inout I
 		hitNormal = vec3(0, 0, -sign(r.dir.z));
 	}
 
-	inter = Intersection(true, hitPos, hitNormal, aabb.material);
+	inter = Intersection(aabb.objectId, hitPos, hitNormal, aabb.material);
 	maxDist = tNear;
 }
 
@@ -332,23 +337,57 @@ vec3 background(vec3 dir)
 	return vec3(max(0, dot(dir, vec3(0,-1,0)))) * vec3(0.2,0.2,1);
 }
 
-vec3 lightContribution(Material material, Material lightMaterial, vec3 pos, vec3 lightPos, float lightPdf, vec3 normal, vec3 lightNormal, vec3 Lo)
+vec3 lightContribution(uint objectId, Material material, Material lightMaterial, vec3 pos, vec3 lightPos, float lightArea, vec3 normal, vec3 lightNormal, vec3 Lo)
 {
+	vec3 light = vec3(0);
+
 	vec3 lightPosDiff = lightPos - pos;
-	vec3 Li = normalize(lightPosDiff);
+	float lightDistSquared = dot(lightPosDiff, lightPosDiff);
 
-	float cosine = max(0, dot(normal, Li)) * max(0, dot(lightNormal, -Li));
-	if (cosine <= 0)
-		return vec3(0);
+	{
+		vec3 Li = normalize(lightPosDiff);
 
-	float distSquared = dot(lightPosDiff, lightPosDiff);
-	Intersection shadowInter = intersectScene(makeRay(pos, Li), EPSILON, sqrt(distSquared) * (1 - EPSILON));
-	if (shadowInter.hit)
-		return vec3(0);
+		float NdotL = max(0, dot(normal, Li));
+		float LNdotL = max(0, dot(lightNormal, -Li));
+		if (NdotL > 0 && LNdotL > 0)
+		{
+			Intersection shadowInter = intersectScene(makeRay(pos, Li), EPSILON, sqrt(lightDistSquared) * (1 - EPSILON));
+			if (shadowInter.objectId == -1)
+			{
+				vec3 brdf = evaluateBRDF(material, Li, normal, Lo);
 
-	vec3 brdf = evaluateBRDF(material, Li, normal, Lo);
-	float pdf = evaluatePDF(material, Li, normal, Lo);
-	return lightMaterial.radiance * brdf * cosine / distSquared / lightPdf;
+				float lightPdf = 1 / (LNdotL * lightArea / lightDistSquared);
+				float brdfPdf = evaluatePDF(material, Li, normal, Lo);
+				float weight = balanceHeuristic(1, lightPdf, 1, brdfPdf);
+
+				light += brdf * NdotL * lightMaterial.radiance * weight / lightPdf;
+			}
+		}
+	}
+
+	{
+		vec3 Li = sampleBRDF(material, normal, Lo);
+		vec3 brdf = evaluateBRDF(material, Li, normal, Lo);
+		float brdfPdf = evaluatePDF(material, Li, normal, Lo);
+
+		float NdotL = max(0, dot(normal, Li));
+		if (brdfPdf > 0 && NdotL > 0)
+		{
+			float LNdotL = max(0, dot(lightNormal, -Li));
+			float lightPdf = 1 / (LNdotL * lightArea / lightDistSquared);
+			if (lightPdf > 0)
+			{
+				Intersection lightInter = intersectScene(makeRay(pos, Li), EPSILON, INFINITY);
+				if (lightInter.objectId == objectId)
+				{
+					float weight = balanceHeuristic(1, brdfPdf, 1, lightPdf);
+					light += brdf * NdotL * lightMaterial.radiance * weight / brdfPdf;
+				}
+			}
+		}
+	}
+
+	return light;
 }
 
 vec3 directIllumination(Material material, vec3 pos, vec3 normal, vec3 Lo)
@@ -362,8 +401,7 @@ vec3 directIllumination(Material material, vec3 pos, vec3 normal, vec3 Lo)
 		{
 			vec3 lightNormal = randomSpherePointUniform();
 			vec3 lightPos = sphere.center + lightNormal * sphere.radius;
-			float lightPdf = 1 / sphere.area;
-			light += lightContribution(material, sphere.material, pos, lightPos, lightPdf, normal, lightNormal, Lo);
+			light += lightContribution(sphere.objectId, material, sphere.material, pos, lightPos, sphere.area, normal, lightNormal, Lo);
 		}
 	}
 	for (int i = 0; i < aabbs.length(); i++)
@@ -403,8 +441,7 @@ vec3 directIllumination(Material material, vec3 pos, vec3 normal, vec3 Lo)
 					break;
 			}
 
-			float lightPdf = 1 / aabb.area;
-			light += lightContribution(material, aabb.material, pos, lightPos, lightPdf, normal, lightNormal, Lo);
+			light += lightContribution(aabb.objectId, material, aabb.material, pos, lightPos, aabb.area, normal, lightNormal, Lo);
 		}
 	}
 
@@ -422,7 +459,7 @@ vec3 calculateColor(Ray startRay)
 	{
 		Intersection inter = intersectScene(ray, EPSILON, INFINITY);
 
-		if (!inter.hit) // No intersection -> Background
+		if (inter.objectId == -1) // No intersection -> Background
 		{
 			color += throughput * background(ray.dir);
 			break;

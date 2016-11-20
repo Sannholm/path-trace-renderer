@@ -355,8 +355,8 @@ public class Bootstrap
             
             final ShaderProgram program2 = shaderManager.getProgram("post_composite");
             program2.setUniform("tex", 0);
-            //program2.setUniform("exposure", FastMath.sin((float)timeElapsed * 2) * 0.5F + 0.5F);
             program2.setUniform("exposure", 1F);
+            //program2.setUniform("exposure", (FastMath.sin((float)timeElapsed * 2) * 0.5F + 0.5F) * 100);
             program2.use();
             
             FullscreenQuadRenderer.render();

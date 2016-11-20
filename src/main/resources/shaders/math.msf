@@ -1,0 +1,12 @@
+// Multiple Importance Sampling
+
+float balanceHeuristic(int nf, float fPdf, int ng, float gPdf)
+{
+    return (nf * fPdf) / (nf * fPdf + ng * gPdf);
+}
+
+float powerHeuristic(int nf, float fPdf, int ng, float gPdf)
+{
+	float f = nf * fPdf, g = ng * gPdf;
+    return (f * f) / (f * f + g * g);
+}
