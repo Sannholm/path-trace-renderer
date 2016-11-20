@@ -351,8 +351,8 @@ vec3 lightContribution(uint objectId, Material material, Material lightMaterial,
 		float LNdotL = max(0, dot(lightNormal, -Li));
 		if (NdotL > 0 && LNdotL > 0)
 		{
-			Intersection shadowInter = intersectScene(makeRay(pos, Li), EPSILON, sqrt(lightDistSquared) * (1 - EPSILON));
-			if (shadowInter.objectId == -1)
+			Intersection shadowInter = intersectScene(makeRay(pos, Li), EPSILON, INFINITY);
+			if (shadowInter.objectId == objectId)
 			{
 				vec3 brdf = evaluateBRDF(material, Li, normal, Lo);
 
