@@ -26,6 +26,7 @@ void main()
 {
 	vec3 hdr = texture(tex, uv).rgb;
 	vec3 ldr = Uncharted2Tonemap(hdr * exposure);
+	vec3 srgb = pow(ldr, vec3(1 / 2.2));
 	
-	out_color = vec4(ldr, 1);
+	out_color = vec4(srgb, 1);
 }

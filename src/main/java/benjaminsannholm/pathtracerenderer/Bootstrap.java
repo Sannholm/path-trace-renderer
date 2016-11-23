@@ -143,10 +143,10 @@ public class Bootstrap
     
     private void init()
     {
-        setupScene(sceneTime);
-        
         setupWindow();
-        GLAPI.setFramebufferSRGB(true);
+        //GLAPI.setFramebufferSRGB(true);
+
+        setupScene(sceneTime);
     }
 
     private void setupWindow()
@@ -330,7 +330,7 @@ public class Bootstrap
             program1.setUniform("framebufferSize", Vector2.create(mainFrameBufferTex.getWidth(), mainFrameBufferTex.getHeight()));
             program1.setUniform("randInit", Vector4.create(RAND.nextFloat(), RAND.nextFloat(), RAND.nextFloat(), RAND.nextFloat()));
             program1.setUniform("time", (float)timeElapsed);
-            program1.setUniform("numPasses", numPasses);
+            program1.setUniform("numPasses", numPasses + 1);
             program1.setUniform("cam00", cam00);
             program1.setUniform("cam10", cam10);
             program1.setUniform("cam01", cam01);
