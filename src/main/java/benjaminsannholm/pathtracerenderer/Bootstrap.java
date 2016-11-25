@@ -246,16 +246,16 @@ public class Bootstrap
                 System.out.println(fps);
             }
 
-            if (numPasses == PASSES_PER_FRAME)
+            /*if (numPasses == PASSES_PER_FRAME)
             {
                 resetRender();
-                
+            
                 //sceneTime += 1 / 30F;
                 sceneTime += glfwGetTime() - lastFrameTime;
                 lastFrameTime = glfwGetTime();
 
                 setupScene(sceneTime);
-            }
+            }*/
             
             render();
             
@@ -273,7 +273,7 @@ public class Bootstrap
     {
         final float angle = 20 * (float)Math.sin(Math.toRadians(time * 100));
         setCameraTransform(Transform.create(
-                Vector3.create(0, 0, 50).rotateY(angle),
+                Vector3.create(0, 0, 40).rotateY(angle),
                 Quaternion.fromAxisAngle(Vector3.Y_AXIS, -angle),
                 Vector3.ONE));
         /*setCameraTransform(Transform.create(
