@@ -47,6 +47,7 @@ dependencies {
 	compile "org.lwjgl:lwjgl-glfw:${lwjglVersion}"
 	compile "org.lwjgl:lwjgl-jemalloc:${lwjglVersion}"
 	compile "org.lwjgl:lwjgl-opengl:${lwjglVersion}"
+	compile "org.lwjgl:lwjgl-opencl:${lwjglVersion}"
 	// LWJGL natives
 	runtime "org.lwjgl:lwjgl:${lwjglVersion}:${lwjglNatives}"
 	runtime "org.lwjgl:lwjgl-glfw:${lwjglVersion}:${lwjglNatives}"
