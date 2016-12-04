@@ -4,6 +4,7 @@
 const uint BRDF_DIFFUSE = 0;
 const uint BRDF_SPECULAR = 1;
 const uint BRDF_REFRACT = 2;
+const uint BRDF_DISNEY = 3;
 
 struct Material
 {
@@ -38,6 +39,16 @@ struct AABB
 	Material material;
 };
 
+struct Disk
+{
+	uint objectId;
+	vec3 center;
+	float radius;
+	vec3 normal;
+	float area;
+	Material material;
+};
+
 struct Intersection
 {
 	uint objectId;
@@ -47,15 +58,14 @@ struct Intersection
 	Material material;
 };
 
-Ray makeRay(vec3 origin, vec3 dir);
-Sphere makeSphere(vec3 center, float radius, Material material);
-AABB makeAABB(vec3 center, vec3 size, Material material);
+Ray makeRay(const vec3 origin, const vec3 dir);
+Sphere makeSphere(const vec3 center, const float radius, const Material material);
+AABB makeAABB(const vec3 center, const vec3 size, const Material material);
+Disk makeDisk(const vec3 center, const float radius, const vec3 normal, const Material material);
 
 layout(local_size_x = 16, local_size_y = 16) in;
 
-const float INFINITY = 1.0 / 0.0;
 const float EPSILON = 1e-4;
-const float PI = 3.1415926535897932384626433832795;
 
 const Intersection NO_INTERSECTION = Intersection(-1, vec3(0), vec3(0), false, Material(0, vec3(0), vec3(0), 0));
 
@@ -84,7 +94,7 @@ uint nextObjectId = 0;
 Sphere spheres[] = Sphere[](
 	//makeSphere(vec3(0,0,40), 100, Material(BRDF_DIFFUSE, vec3(0), vec3(1,0,0), 0)),
 
-	makeSphere(vec3(0,-3,3), 2, Material(BRDF_DIFFUSE, vec3(0), vec3(1), 0)),
+	makeSphere(vec3(0,-3,3), 2, Material(BRDF_DISNEY, vec3(0), vec3(1), 0)),
 	makeSphere(vec3(-3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1), 0)),
 	makeSphere(vec3(3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1), 0))
 	
@@ -108,21 +118,34 @@ AABB aabbs[] = AABB[](
 	makeAABB(vec3(0, 4.9, 0), vec3(1, 0.1, 1), Material(BRDF_DIFFUSE, vec3(0.2,0.5,2) * 0, vec3(1), 0)) // Light
 );
 
-Ray makeRay(vec3 origin, vec3 dir)
+const vec3 SUN_NORMAL = normalize(vec3(1, -0.5, -1));
+
+Disk disks[] = Disk[](
+	makeDisk(-SUN_NORMAL * 149600e6, 695700e3, SUN_NORMAL, Material(BRDF_DIFFUSE, vec3(0.2,0.5,2) * 100000, vec3(1), 0)),
+	makeDisk(vec3(10,-5,-10), 1, normalize(vec3(1,0,1)), Material(BRDF_DIFFUSE, vec3(10), vec3(1), 0))
+);
+
+Ray makeRay(const vec3 origin, const vec3 dir)
 {
 	return Ray(origin, dir, 1 / dir);
 }
 
-Sphere makeSphere(vec3 center, float radius, Material material)
+Sphere makeSphere(const vec3 center, const float radius, const Material material)
 {
 	float area = 4 * PI * radius * radius;
 	return Sphere(nextObjectId++, center, radius, area, material);
 }
 
-AABB makeAABB(vec3 center, vec3 size, Material material)
+AABB makeAABB(const vec3 center, const vec3 size, const Material material)
 {
 	float area = 2 * (size.y * size.z + size.x * size.z + size.x * size.y);
 	return AABB(nextObjectId++, center - size * 0.5, center + size * 0.5, area, material);
+}
+
+Disk makeDisk(const vec3 center, const float radius, const vec3 normal, const Material material)
+{
+	float area = PI * radius * radius;
+	return Disk(nextObjectId++, center, radius, normal, area, material);
 }
 
 uvec4 state;
@@ -137,7 +160,7 @@ uint randInt()
 	return nextTausLCG(state);
 }
 
-uint randInt(uint bound)
+uint randInt(const uint bound)
 {
 	uint threshold = -bound % bound;
 	while (true)
@@ -196,7 +219,7 @@ vec2 randomStratifiedOffset()
 	return (gridCoord + vec2(rand(), rand())) / STRATIFIED_GRID_SIZE;
 }
 
-mat3 createNormalCoordSystem(vec3 N)
+mat3 createNormalCoordSystem(const vec3 N)
 {
 	vec3 Nt;
     if (abs(N.x) > abs(N.y))
@@ -207,14 +230,14 @@ mat3 createNormalCoordSystem(vec3 N)
     return transpose(mat3(Nb, N, Nt));
 }
 
-vec3 randomSpherePointUniform()
+vec3 randomSpherePoint()
 {
 	float u = rand() * 2 - 1;
 	float theta = 2 * PI * rand();
 	return vec3(vec2(cos(theta), sin(theta)) * sqrt(1 - u * u), u);
 }
 
-vec3 randomHemispherePointCosineWeighted(vec3 dir)
+vec3 randomHemispherePointCosineWeighted(const vec3 dir)
 {
 	float u1 = rand();
 	float theta = 2 * PI * rand();
@@ -234,7 +257,28 @@ vec3 randomHemispherePointCosineWeighted(vec3 dir)
 	return v * createNormalCoordSystem(dir);
 }*/
 
-void intersectSphere(Sphere s, Ray r, inout float maxDist, inout Intersection inter)
+vec3 randomDiskPoint(const vec3 normal, const float radius)
+{
+	vec2 r = vec2(rand(), rand());
+	float theta = acos(sqrt(1 - r.x));
+	float phi = 2 * PI * r.y;
+	vec3 v = vec3(sin(theta) * cos(phi), 0, sin(theta) * sin(phi)) * vec3(radius, 0, radius);
+
+	return v * createNormalCoordSystem(normal);
+}
+
+bool intersectPlane(const vec3 center, const vec3 normal, const Ray r, out float t)
+{
+    float denom = dot(-normal, r.dir);
+    if (denom > 1e-6)
+    {
+        t = dot(center - r.origin, -normal) / denom;
+        return t >= 0;
+    }
+    return false;
+}
+
+void intersectSphere(const Sphere s, const Ray r, inout float maxDist, inout Intersection inter)
 {
 	vec3 p = r.origin - s.center;
 	float b = -dot(p, r.dir);
@@ -261,7 +305,7 @@ void intersectSphere(Sphere s, Ray r, inout float maxDist, inout Intersection in
 	maxDist = tHit;
 }
 
-void intersectAABB(AABB aabb, Ray r, inout float maxDist, inout Intersection inter)
+void intersectAABB(const AABB aabb, const Ray r, inout float maxDist, inout Intersection inter)
 {
 	vec3 t1 = (aabb.min - r.origin) * r.invDir;
 	vec3 t2 = (aabb.max - r.origin) * r.invDir;
@@ -297,23 +341,39 @@ void intersectAABB(AABB aabb, Ray r, inout float maxDist, inout Intersection int
 	maxDist = tHit;
 }
 
-Intersection intersectScene(Ray ray, float maxDist)
+void intersectDisk(const Disk d, const Ray r, inout float maxDist, inout Intersection inter)
+{
+	float t;
+	if (!intersectPlane(d.center, d.normal, r, t) || t > maxDist)
+		return;
+
+	vec3 hitPos = r.origin + r.dir * t;
+	if (sq(hitPos - d.center) > d.radius * d.radius)
+		return;
+
+	inter = Intersection(d.objectId, hitPos, d.normal, false, d.material);
+	maxDist = t;
+}
+
+Intersection intersectScene(const Ray ray, float maxDist)
 {
 	Intersection inter = NO_INTERSECTION;
 	for (int i = 0; i < spheres.length(); i++)
 		intersectSphere(spheres[i], ray, maxDist, inter);
 	for (int i = 0; i < aabbs.length(); i++)
 		intersectAABB(aabbs[i], ray, maxDist, inter);
+	for (int i = 0; i < disks.length(); i++)
+		intersectDisk(disks[i], ray, maxDist, inter);
 
 	return inter;
 }
 
-Intersection intersectScene(Ray ray)
+Intersection intersectScene(const Ray ray)
 {
 	return intersectScene(ray, INFINITY);
 }
 
-vec3 sampleBRDF(Material material, bool goingOut, vec3 normal, vec3 Lo)
+vec3 sampleBRDF(const Material material, const bool goingOut, const vec3 normal, const vec3 Lo)
 {
 	switch(material.brdfType)
 	{
@@ -325,10 +385,12 @@ vec3 sampleBRDF(Material material, bool goingOut, vec3 normal, vec3 Lo)
 		case BRDF_REFRACT:
 			float ior = goingOut ? material.indexOfRefraction : 1 / material.indexOfRefraction;
 			return refract(-Lo, normal, ior);
+		case BRDF_DISNEY:
+			return randomHemispherePointCosineWeighted(normal);
 	}
 }
 
-vec3 evaluateBRDF(Material material, vec3 Li, vec3 normal, vec3 Lo)
+vec3 evaluateBRDF(const Material material, const vec3 Li, const vec3 normal, const vec3 Lo)
 {
 	switch(material.brdfType)
 	{
@@ -336,13 +398,31 @@ vec3 evaluateBRDF(Material material, vec3 Li, vec3 normal, vec3 Lo)
 		case BRDF_DIFFUSE:
 			return material.albedo / PI;
 		case BRDF_SPECULAR:
-			return material.albedo / dot(normal, Li); // Should be specular instead of albedo
+			return material.albedo / dot(normal, Li); // TODO: Should be specular instead of albedo
 		case BRDF_REFRACT:
 			return material.albedo; // TODO: Wrong
+		case BRDF_DISNEY:
+			vec3 tangent = normalize(cross(vec3(0,1,0), normal));
+			vec3 bitangent = normalize(cross(normal, tangent));
+
+			return DisneyBRDF(Li, Lo, normal, tangent, bitangent, DisneyParams
+			(
+				vec3(.67), //vec3 baseColor;
+				0, //float metallic;
+				0, //float subsurface;
+				.5, //float specular;
+				.5, //float roughness;
+				0, //float specularTint;
+				0, //float anisotropic;
+				0, //float sheen;
+				.5, //float sheenTint;
+				0, //float clearcoat;
+				1 //float clearcoatGloss;
+			));
 	}
 }
 
-float evaluatePDF(Material material, vec3 Li, vec3 normal, vec3 Lo)
+float evaluatePDF(const Material material, const vec3 Li, const vec3 normal, const vec3 Lo)
 {
 	switch(material.brdfType)
 	{
@@ -353,10 +433,12 @@ float evaluatePDF(Material material, vec3 Li, vec3 normal, vec3 Lo)
 			return 1;
 		case BRDF_REFRACT:
 			return 1;
+		case BRDF_DISNEY:
+			return dot(normal, Li) / PI;
 	}
 }
 
-vec3 lightContribution(uint objectId, Material material, Material lightMaterial, vec3 pos, vec3 lightPos, float lightArea, vec3 normal, vec3 lightNormal, vec3 Lo)
+vec3 lightContribution(const uint objectId, const Material material, const vec3 lightRadiance, const vec3 pos, const vec3 lightPos, const float lightArea, const vec3 normal, const vec3 lightNormal, const vec3 Lo)
 {
 	vec3 light = vec3(0);
 
@@ -379,7 +461,7 @@ vec3 lightContribution(uint objectId, Material material, Material lightMaterial,
 				float brdfPdf = evaluatePDF(material, Li, normal, Lo);
 				float weight = balanceHeuristic(1, lightPdf, 1, brdfPdf);
 
-				light += brdf * NdotL * lightMaterial.radiance * weight / lightPdf;
+				light += brdf * NdotL * lightRadiance * weight / lightPdf;
 			}
 		}
 	}
@@ -400,7 +482,7 @@ vec3 lightContribution(uint objectId, Material material, Material lightMaterial,
 				if (lightInter.objectId == objectId)
 				{
 					float weight = balanceHeuristic(1, brdfPdf, 1, lightPdf);
-					light += brdf * NdotL * lightMaterial.radiance * weight / brdfPdf;
+					light += brdf * NdotL * lightRadiance * weight / brdfPdf;
 				}
 			}
 		}
@@ -409,7 +491,7 @@ vec3 lightContribution(uint objectId, Material material, Material lightMaterial,
 	return light;
 }
 
-vec3 directIllumination(Material material, vec3 pos, vec3 normal, vec3 Lo)
+vec3 directIllumination(const Material material, const vec3 pos, const vec3 normal, const vec3 Lo)
 {
 	vec3 light = vec3(0);
 
@@ -418,9 +500,9 @@ vec3 directIllumination(Material material, vec3 pos, vec3 normal, vec3 Lo)
 		Sphere sphere = spheres[i];
 		if (any(greaterThan(sphere.material.radiance, vec3(0))))
 		{
-			vec3 lightNormal = randomSpherePointUniform();
+			vec3 lightNormal = randomSpherePoint();
 			vec3 lightPos = sphere.center + lightNormal * sphere.radius;
-			light += lightContribution(sphere.objectId, material, sphere.material, pos, lightPos, sphere.area, normal, lightNormal, Lo);
+			light += lightContribution(sphere.objectId, material, sphere.material.radiance, pos, lightPos, sphere.area, normal, lightNormal, Lo);
 		}
 	}
 	for (int i = 0; i < aabbs.length(); i++)
@@ -460,20 +542,29 @@ vec3 directIllumination(Material material, vec3 pos, vec3 normal, vec3 Lo)
 					break;
 			}
 
-			light += lightContribution(aabb.objectId, material, aabb.material, pos, lightPos, aabb.area, normal, lightNormal, Lo);
+			light += lightContribution(aabb.objectId, material, aabb.material.radiance, pos, lightPos, aabb.area, normal, lightNormal, Lo);
+		}
+	}
+	for (int i = 0; i < disks.length(); i++)
+	{
+		Disk disk = disks[i];
+		if (any(greaterThan(disk.material.radiance, vec3(0))))
+		{
+			vec3 lightPos = disk.center + randomDiskPoint(disk.normal, disk.radius);
+			light += lightContribution(disk.objectId, material, disk.material.radiance, pos, lightPos, disk.area, normal, disk.normal, Lo);
 		}
 	}
 
 	return light;
 }
 
-vec3 background(vec3 dir)
+vec3 background(const vec3 dir)
 {
 	//return vec3(0);
-	return mix(vec3(0,0,0), vec3(0.2,0.4,1) * 10, pow(dot(dir, vec3(0,1,0)) * 0.5 + 0.5, 5));
+	return mix(vec3(0,0,0), vec3(0.2,0.4,1) * 10, pow(dot(dir, vec3(0,1,0)) * 0.5 + 0.5, 5)) * 0.1;
 }
 
-vec3 calculateColor(Ray startRay)
+vec3 calculateColor(const Ray startRay)
 {
 	vec3 color = vec3(0);
 	vec3 throughput = vec3(1);

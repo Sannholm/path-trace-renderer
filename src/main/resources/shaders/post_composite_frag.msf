@@ -1,3 +1,5 @@
+#include math
+
 uniform sampler2D tex;
 uniform float exposure;
 
@@ -5,7 +7,7 @@ in vec2 uv;
 
 out vec4 out_color;
 
-vec3 Uncharted2Tonemap(const vec3 x)
+vec3 uncharted2Tonemap(const vec3 x)
 {
 	const float A = 0.15;
 	const float B = 0.50;
@@ -25,8 +27,8 @@ vec3 reinhardTonemap(const vec3 hdr)
 void main()
 {
 	vec3 hdr = texture(tex, uv).rgb;
-	vec3 ldr = Uncharted2Tonemap(hdr * exposure);
-	vec3 srgb = pow(ldr, vec3(1 / 2.2));
+	vec3 ldr = uncharted2Tonemap(hdr * exposure);
+	vec3 srgb = linearToSRGB(ldr);
 	
 	out_color = vec4(srgb, 1);
 }
