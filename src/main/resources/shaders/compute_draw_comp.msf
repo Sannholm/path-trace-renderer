@@ -3,13 +3,14 @@
 
 const uint BRDF_DIFFUSE = 0;
 const uint BRDF_SPECULAR = 1;
-const uint BRDF_REFRACT_GLASS = 2;
+const uint BRDF_REFRACT = 2;
 
 struct Material
 {
 	uint brdfType;
 	vec3 radiance;
 	vec3 albedo;
+	float indexOfRefraction;
 };
 
 struct Ray
@@ -42,6 +43,7 @@ struct Intersection
 	uint objectId;
 	vec3 pos;
 	vec3 normal;
+	bool inside;
 	Material material;
 };
 
@@ -55,7 +57,7 @@ const float INFINITY = 1.0 / 0.0;
 const float EPSILON = 1e-4;
 const float PI = 3.1415926535897932384626433832795;
 
-const Intersection NO_INTERSECTION = Intersection(-1, vec3(0), vec3(0), Material(0, vec3(0), vec3(0)));
+const Intersection NO_INTERSECTION = Intersection(-1, vec3(0), vec3(0), false, Material(0, vec3(0), vec3(0), 0));
 
 const bool PROGRESSIVE = true;
 const int SAMPLES_PER_PIXEL = 100;
@@ -80,30 +82,30 @@ uint sampleIndex;
 uint nextObjectId = 0;
 
 Sphere spheres[] = Sphere[](
-	//makeSphere(vec3(0,0,40), 100, Material(BRDF_DIFFUSE, vec3(0), vec3(1))),
+	//makeSphere(vec3(0,0,40), 100, Material(BRDF_DIFFUSE, vec3(0), vec3(1,0,0), 0)),
 
-	makeSphere(vec3(0,-3,3), 2, Material(BRDF_REFRACT_GLASS, vec3(0), vec3(1))),
-	makeSphere(vec3(-3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1))),
-	makeSphere(vec3(3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1)))
+	makeSphere(vec3(0,-3,3), 2, Material(BRDF_DIFFUSE, vec3(0), vec3(1), 0)),
+	makeSphere(vec3(-3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1), 0)),
+	makeSphere(vec3(3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1), 0))
 	
 	//makeSphere(vec3(0,0,0), 2, Material(BRDF_DIFFUSE, vec3(0), vec3(0.18)))
 );
 
 AABB aabbs[] = AABB[](
 	// World floor
-	makeAABB(vec3(0, -6, 0), vec3(1000, 0.1, 1000), Material(BRDF_DIFFUSE, vec3(0), vec3(1))),
+	makeAABB(vec3(0, -6, 0), vec3(1000, 0.1, 1000), Material(BRDF_DIFFUSE, vec3(0), vec3(1), 0)),
 
-	//makeAABB(vec3(0, 0, 40), vec3(100, 100, 1000), Material(BRDF_DIFFUSE, vec3(0), vec3(1))),
+	//makeAABB(vec3(0, 0, 40), vec3(100, 100, 200), Material(BRDF_DIFFUSE, vec3(0), vec3(1), 0))
 
 	// Cornell box
-	makeAABB(vec3(0, -5, 0), vec3(10, 0.1, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1))), // Floor
-	makeAABB(vec3(0, 0, -5), vec3(10, 10, 0.1), Material(BRDF_DIFFUSE, vec3(0), vec3(0,0,1))), // Back
-	makeAABB(vec3(-5, 0, 0), vec3(0.1, 10, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1,0,0))), // Left
-	makeAABB(vec3(5, 0, 0), vec3(0.1, 10, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(0,1,0))), // Right
-	makeAABB(vec3(0, 5, 0), vec3(10, 0.1, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1))), // Top
+	makeAABB(vec3(0, -5, 0), vec3(10, 0.1, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1), 0)), // Floor
+	makeAABB(vec3(0, 0, -5), vec3(10, 10, 0.1), Material(BRDF_DIFFUSE, vec3(0), vec3(0,0,1), 0)), // Back
+	makeAABB(vec3(-5, 0, 0), vec3(0.1, 10, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1,0,0), 0)), // Left
+	makeAABB(vec3(5, 0, 0), vec3(0.1, 10, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(0,1,0), 0)), // Right
+	makeAABB(vec3(0, 5, 0), vec3(10, 0.1, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1), 0)), // Top
 	
-	makeAABB(vec3(3, -4, 0), vec3(3, 2, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1))),
-	makeAABB(vec3(0, 4.9, 0), vec3(1, 0.1, 1), Material(BRDF_DIFFUSE, vec3(0.2,0.5,2) * 0, vec3(1))) // Light
+	makeAABB(vec3(3, -4, 0), vec3(3, 2, 10), Material(BRDF_REFRACT, vec3(0), vec3(1), 1.5)),
+	makeAABB(vec3(0, 4.9, 0), vec3(1, 0.1, 1), Material(BRDF_DIFFUSE, vec3(0.2,0.5,2) * 0, vec3(1), 0)) // Light
 );
 
 Ray makeRay(vec3 origin, vec3 dir)
@@ -251,10 +253,11 @@ void intersectSphere(Sphere s, Ray r, inout float maxDist, inout Intersection in
 
 	vec3 hitPos = r.origin + r.dir * tHit;
 	vec3 hitNormal = normalize(hitPos - s.center);
-	if (tNear < 0)
+	bool inside = tNear < 0;
+	if (inside)
 		hitNormal = -hitNormal;
 
-	inter = Intersection(s.objectId, hitPos, hitNormal, s.material);
+	inter = Intersection(s.objectId, hitPos, hitNormal, inside, s.material);
 	maxDist = tHit;
 }
 
@@ -263,8 +266,9 @@ void intersectAABB(AABB aabb, Ray r, inout float maxDist, inout Intersection int
 	vec3 t1 = (aabb.min - r.origin) * r.invDir;
 	vec3 t2 = (aabb.max - r.origin) * r.invDir;
  	vec3 tMin = min(t1, t2);
-    float tNear = max(max(tMin.x, tMin.y), tMin.z);
-    float tFar = min(min(max(t1.x, t2.x), max(t1.y, t2.y)), max(t1.z, t2.z));
+ 	vec3 tMax = max(t1, t2);
+ 	float tNear = max(max(tMin.x, tMin.y), tMin.z);
+ 	float tFar = min(min(tMax.x, tMax.y), tMax.z);
 
     bool hit = tFar > 0 && tFar > tNear;
     float tHit = tNear < 0 ? tFar : tNear;
@@ -272,7 +276,8 @@ void intersectAABB(AABB aabb, Ray r, inout float maxDist, inout Intersection int
     	return;
 
 	vec3 hitPos = r.origin + r.dir * tHit;
-	vec3 hitNormal = vec3(0);
+ 	vec3 hitNormal = vec3(0);
+	bool inside = tNear < 0;
 
 	// TODO: Optimize
 	if (tMin.x > tMin.y && tMin.x > tMin.z)
@@ -288,7 +293,7 @@ void intersectAABB(AABB aabb, Ray r, inout float maxDist, inout Intersection int
 		hitNormal = vec3(0, 0, -sign(r.dir.z));
 	}
 
-	inter = Intersection(aabb.objectId, hitPos, hitNormal, aabb.material);
+	inter = Intersection(aabb.objectId, hitPos, hitNormal, inside, aabb.material);
 	maxDist = tHit;
 }
 
@@ -308,7 +313,7 @@ Intersection intersectScene(Ray ray)
 	return intersectScene(ray, INFINITY);
 }
 
-vec3 sampleBRDF(Material material, vec3 normal, vec3 Lo)
+vec3 sampleBRDF(Material material, bool goingOut, vec3 normal, vec3 Lo)
 {
 	switch(material.brdfType)
 	{
@@ -317,8 +322,9 @@ vec3 sampleBRDF(Material material, vec3 normal, vec3 Lo)
 			return randomHemispherePointCosineWeighted(normal);
 		case BRDF_SPECULAR:
 			return reflect(-Lo, normal);
-		case BRDF_REFRACT_GLASS:
-			return refract(-Lo, normal, 1.52);
+		case BRDF_REFRACT:
+			float ior = goingOut ? material.indexOfRefraction : 1 / material.indexOfRefraction;
+			return refract(-Lo, normal, ior);
 	}
 }
 
@@ -331,8 +337,8 @@ vec3 evaluateBRDF(Material material, vec3 Li, vec3 normal, vec3 Lo)
 			return material.albedo / PI;
 		case BRDF_SPECULAR:
 			return material.albedo / dot(normal, Li); // Should be specular instead of albedo
-		case BRDF_REFRACT_GLASS:
-			return vec3(1);
+		case BRDF_REFRACT:
+			return material.albedo; // TODO: Wrong
 	}
 }
 
@@ -345,7 +351,7 @@ float evaluatePDF(Material material, vec3 Li, vec3 normal, vec3 Lo)
 			return dot(normal, Li) / PI;
 		case BRDF_SPECULAR:
 			return 1;
-		case BRDF_REFRACT_GLASS:
+		case BRDF_REFRACT:
 			return 1;
 	}
 }
@@ -379,7 +385,7 @@ vec3 lightContribution(uint objectId, Material material, Material lightMaterial,
 	}
 
 	{
-		vec3 Li = sampleBRDF(material, normal, Lo);
+		vec3 Li = sampleBRDF(material, false, normal, Lo);
 		vec3 brdf = evaluateBRDF(material, Li, normal, Lo);
 		float brdfPdf = evaluatePDF(material, Li, normal, Lo);
 
@@ -497,13 +503,14 @@ vec3 calculateColor(Ray startRay)
 		if (bounces == NUM_BOUNCES)
 			break;
 
-		vec3 Li = sampleBRDF(inter.material, inter.normal, -ray.dir);
-		vec3 brdf = evaluateBRDF(inter.material, Li, inter.normal, -ray.dir);
-		float pdf = evaluatePDF(inter.material, Li, inter.normal, -ray.dir);
+		vec3 Li = sampleBRDF(inter.material, inter.inside, inter.normal, -ray.dir);
+		vec3 sidedNormal = inter.normal * sign(dot(inter.normal, Li));
+		vec3 brdf = evaluateBRDF(inter.material, Li, sidedNormal, -ray.dir);
+		float pdf = evaluatePDF(inter.material, Li, sidedNormal, -ray.dir);
 		if (brdf == vec3(0) || pdf == 0)
 			break;
 
-		float NdotL = dot(inter.normal, Li);
+		float NdotL = dot(sidedNormal, Li);
 		throughput *= brdf * (abs(NdotL) / pdf);
 
 		// Russian Roulette
@@ -512,7 +519,7 @@ vec3 calculateColor(Ray startRay)
 			break;
 		throughput *= 1 / rrProb; // Re-add lost energy for terminated paths
 
-		ray = makeRay(inter.pos + inter.normal * sign(NdotL) * EPSILON, Li);
+		ray = makeRay(inter.pos + sidedNormal * EPSILON, Li);
 		specularBounce = inter.material.brdfType == BRDF_SPECULAR;
 	}
 	

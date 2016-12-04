@@ -7,11 +7,11 @@ import java.util.List;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 
-public class StackedResourceLocator implements ResourceLocator
+public class FallbackResourceLocator implements ResourceLocator
 {
     private final List<ResourceLocator> stack;
 
-    public StackedResourceLocator(ResourceLocator... stack)
+    public FallbackResourceLocator(ResourceLocator... stack)
     {
         Preconditions.checkArgument(stack.length >= 2, "Stack cannot contain < 2 resource locators");
         this.stack = ImmutableList.copyOf(Preconditions.checkNotNull(stack, "stack"));

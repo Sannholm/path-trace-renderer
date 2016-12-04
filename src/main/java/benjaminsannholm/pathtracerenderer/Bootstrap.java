@@ -67,10 +67,10 @@ import benjaminsannholm.util.opengl.texture.Texture.Format;
 import benjaminsannholm.util.opengl.texture.Texture2D;
 import benjaminsannholm.util.opengl.texture.TextureManager;
 import benjaminsannholm.util.resource.ClasspathResourceLocator;
+import benjaminsannholm.util.resource.FallbackResourceLocator;
 import benjaminsannholm.util.resource.FileResourceLocator;
 import benjaminsannholm.util.resource.PrefixedResourceLocator;
 import benjaminsannholm.util.resource.ResourceLocator;
-import benjaminsannholm.util.resource.StackedResourceLocator;
 
 public class Bootstrap
 {
@@ -89,7 +89,7 @@ public class Bootstrap
     private final TextureManager textureManager = new TextureManager(
             new PrefixedResourceLocator(BASE_RESOURCE_LOCATOR, "textures/"));
     
-    private final ShaderManager shaderManager = new ShaderManager(new StackedResourceLocator(
+    private final ShaderManager shaderManager = new ShaderManager(new FallbackResourceLocator(
             new PrefixedResourceLocator(new FileResourceLocator(), "shaders/"),
             new PrefixedResourceLocator(BASE_RESOURCE_LOCATOR, "shaders/")), 430, false);
 
