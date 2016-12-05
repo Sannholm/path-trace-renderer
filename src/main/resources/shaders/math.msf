@@ -15,6 +15,20 @@ float sq(const vec3 x)
 	return dot(x, x);
 }
 
+// Vectors
+
+vec3 normalToTangent(const vec3 normal)
+{
+	vec3 c1 = cross(normal, vec3(0, 0, 1));
+	vec3 c2 = cross(normal, vec3(0, 1, 0));
+	return normalize(sq(c1) > sq(c2) ? c1 : c2);
+}
+
+vec3 tangentToBitangent(const vec3 normal, const vec3 tangent)
+{
+	return normalize(cross(normal, tangent));
+}
+
 // Color
 
 vec3 sRGBToLinear(const vec3 sRGBCol)

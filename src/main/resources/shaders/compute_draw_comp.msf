@@ -103,25 +103,25 @@ Sphere spheres[] = Sphere[](
 
 AABB aabbs[] = AABB[](
 	// World floor
-	makeAABB(vec3(0, -6, 0), vec3(1000, 0.1, 1000), Material(BRDF_DIFFUSE, vec3(0), vec3(1), 0)),
+	makeAABB(vec3(0, -6, 0), vec3(1000, 0.1, 1000), Material(BRDF_DISNEY, vec3(0), vec3(1), 0)),
 
 	//makeAABB(vec3(0, 0, 40), vec3(100, 100, 200), Material(BRDF_DIFFUSE, vec3(0), vec3(1), 0))
 
 	// Cornell box
-	makeAABB(vec3(0, -5, 0), vec3(10, 0.1, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1), 0)), // Floor
-	makeAABB(vec3(0, 0, -5), vec3(10, 10, 0.1), Material(BRDF_DIFFUSE, vec3(0), vec3(0,0,1), 0)), // Back
-	makeAABB(vec3(-5, 0, 0), vec3(0.1, 10, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1,0,0), 0)), // Left
-	makeAABB(vec3(5, 0, 0), vec3(0.1, 10, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(0,1,0), 0)), // Right
-	makeAABB(vec3(0, 5, 0), vec3(10, 0.1, 10), Material(BRDF_DIFFUSE, vec3(0), vec3(1), 0)), // Top
+	makeAABB(vec3(0, -5, 0), vec3(10, 0.1, 10), Material(BRDF_DISNEY, vec3(0), vec3(1), 0)), // Floor
+	makeAABB(vec3(0, 0, -5), vec3(10, 10, 0.1), Material(BRDF_DISNEY, vec3(0), vec3(0,0,1), 0)), // Back
+	makeAABB(vec3(-5, 0, 0), vec3(0.1, 10, 10), Material(BRDF_DISNEY, vec3(0), vec3(1,0,0), 0)), // Left
+	makeAABB(vec3(5, 0, 0), vec3(0.1, 10, 10), Material(BRDF_DISNEY, vec3(0), vec3(0,1,0), 0)), // Right
+	makeAABB(vec3(0, 5, 0), vec3(10, 0.1, 10), Material(BRDF_DISNEY, vec3(0), vec3(1), 0)), // Top
 	
 	makeAABB(vec3(3, -4, 0), vec3(3, 2, 10), Material(BRDF_REFRACT, vec3(0), vec3(1), 1.5)),
-	makeAABB(vec3(0, 4.9, 0), vec3(1, 0.1, 1), Material(BRDF_DIFFUSE, vec3(0.2,0.5,2) * 0, vec3(1), 0)) // Light
+	makeAABB(vec3(0, 4.9, 0), vec3(1, 0.1, 1), Material(BRDF_DISNEY, vec3(0.2,0.5,2) * 0, vec3(1), 0)) // Light
 );
 
-const vec3 SUN_NORMAL = normalize(vec3(1, -0.5, -1));
+const vec3 SUN_NORMAL = normalize(vec3(0.25, -0.1, 1));
 
 Disk disks[] = Disk[](
-	makeDisk(-SUN_NORMAL * 149600e6, 695700e3, SUN_NORMAL, Material(BRDF_DIFFUSE, vec3(0.2,0.5,2) * 100000, vec3(1), 0)),
+	makeDisk(-SUN_NORMAL * 149600e6, 695700e3, SUN_NORMAL, Material(BRDF_DIFFUSE, vec3(1,1,1) * 100000, vec3(1), 0)),
 	makeDisk(vec3(10,-5,-10), 1, normalize(vec3(1,0,1)), Material(BRDF_DIFFUSE, vec3(10), vec3(1), 0))
 );
 
@@ -386,7 +386,7 @@ vec3 sampleBRDF(const Material material, const bool goingOut, const vec3 normal,
 			float ior = goingOut ? material.indexOfRefraction : 1 / material.indexOfRefraction;
 			return refract(-Lo, normal, ior);
 		case BRDF_DISNEY:
-			return randomHemispherePointCosineWeighted(normal);
+			return randomHemispherePointCosineWeighted(normal); // TODO: Proper sampling
 	}
 }
 
@@ -402,16 +402,17 @@ vec3 evaluateBRDF(const Material material, const vec3 Li, const vec3 normal, con
 		case BRDF_REFRACT:
 			return material.albedo; // TODO: Wrong
 		case BRDF_DISNEY:
-			vec3 tangent = normalize(cross(vec3(0,1,0), normal));
-			vec3 bitangent = normalize(cross(normal, tangent));
+
+			vec3 tangent = normalToTangent(normal);
+			vec3 bitangent = tangentToBitangent(normal, tangent);
 
 			return DisneyBRDF(Li, Lo, normal, tangent, bitangent, DisneyParams
 			(
-				vec3(.67), //vec3 baseColor;
-				0, //float metallic;
+				material.albedo, //vec3 baseColor;
+				1, //float metallic;
 				0, //float subsurface;
-				.5, //float specular;
-				.5, //float roughness;
+				1, //float specular;
+				0, //float roughness;
 				0, //float specularTint;
 				0, //float anisotropic;
 				0, //float sheen;
