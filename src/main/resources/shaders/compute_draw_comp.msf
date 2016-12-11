@@ -138,7 +138,8 @@ const vec3 SUN_NORMAL = normalize(vec3(0.5, -0.5, -1));
 
 Disk disks[] = Disk[](
 	//makeDisk(-SUN_NORMAL * 149600e6, 695700e3, SUN_NORMAL, Material(BRDF_DIFFUSE, vec3(1,1,1) * 100000, vec3(1), 0, DISNEY_DEF)),
-	makeDisk(vec3(10,-5,-10), 1, normalize(vec3(1,0,1)), Material(BRDF_DIFFUSE, vec3(10), vec3(1), 0, DISNEY_DEF))
+	makeDisk(vec3(10,-5,-10), 1, normalize(vec3(1,0,1)), Material(BRDF_DIFFUSE, vec3(10), vec3(1), 0, DISNEY_DEF)),
+	makeDisk(vec3(0,2,0), 1, normalize(vec3(0,-1,1)), Material(BRDF_DIFFUSE, vec3(10), vec3(1), 0, DISNEY_DEF))
 );
 
 Ray makeRay(const vec3 origin, const vec3 dir)
