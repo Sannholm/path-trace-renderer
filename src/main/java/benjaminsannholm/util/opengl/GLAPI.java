@@ -1,12 +1,13 @@
 package benjaminsannholm.util.opengl;
 
+import static org.lwjgl.system.MemoryUtil.NULL;
+
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
-import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
@@ -14,74 +15,126 @@ import org.lwjgl.opengl.GL41;
 import org.lwjgl.opengl.GL42;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL45;
+import org.lwjgl.opengl.GLDebugMessageCallback;
+import org.lwjgl.opengl.GLDebugMessageCallbackI;
+import org.lwjgl.system.APIUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.base.Throwables;
-
-import gnu.trove.iterator.TIntIterator;
-import gnu.trove.list.TIntList;
-import gnu.trove.list.array.TIntArrayList;
 
 public final class GLAPI
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(GLAPI.class);
 
-    private static final boolean ERROR_REPORTING = false;
-    private static final TIntList ERRORS = new TIntArrayList();
+    private static final boolean DEBUG_PRINTING = true;
 
-    private static void checkError()
+    public static void setupDebugPrinting()
     {
-        if (ERROR_REPORTING)
+        if (DEBUG_PRINTING)
         {
-            int error;
-            while ((error = getError()) != GL11.GL_NO_ERROR)
-                ERRORS.add(error);
-
-            if (!ERRORS.isEmpty())
+            if ((getInteger(GL30.GL_CONTEXT_FLAGS) & GL43.GL_CONTEXT_FLAG_DEBUG_BIT) == 0)
+                LOGGER.warn("A non-debug context may not produce any debug output.");
+            
+            setDebugOutput(true);
+            setDebugOutputSynchronous(true);
+            setDebugMessageControl(GL11.GL_DONT_CARE, GL11.GL_DONT_CARE, GL11.GL_DONT_CARE, null, true);
+            
+            setDebugMessageCallback(GLDebugMessageCallback.create((source, type, id, severity, length, message, userParam) ->
             {
-                final StringBuilder message = new StringBuilder("########## GL ERROR ##########\n");
+                final String output = "[OpenGL] "
+                        + String.format("[%s][%s][%s] 0x%X: ",
+                                getDebugSource(source),
+                                getDebugSeverity(severity),
+                                getDebugType(type),
+                                id)
+                        + GLDebugMessageCallback.getMessage(length, message);
                 
-                for (TIntIterator it = ERRORS.iterator(); it.hasNext();)
-                    message.append(error).append(": ").append(getErrorString(it.next())).append('\n');
-                
-                message.append(Throwables.getStackTraceAsString(new Throwable()));
-
-                LOGGER.warn(message.toString());
-                
-                ERRORS.clear();
-            }
+                LOGGER.warn(output, new Throwable());
+            }), NULL);
         }
     }
     
+    private static String getDebugSource(int source)
+    {
+        switch (source)
+        {
+            case GL43.GL_DEBUG_SOURCE_API:
+                return "API";
+            case GL43.GL_DEBUG_SOURCE_WINDOW_SYSTEM:
+                return "Window system";
+            case GL43.GL_DEBUG_SOURCE_SHADER_COMPILER:
+                return "Shader compiler";
+            case GL43.GL_DEBUG_SOURCE_THIRD_PARTY:
+                return "Third party";
+            case GL43.GL_DEBUG_SOURCE_APPLICATION:
+                return "Application";
+            case GL43.GL_DEBUG_SOURCE_OTHER:
+                return "Other";
+            default:
+                return APIUtil.apiUnknownToken(source);
+        }
+    }
+    
+    private static String getDebugType(int type)
+    {
+        switch (type)
+        {
+            case GL43.GL_DEBUG_TYPE_ERROR:
+                return "Error";
+            case GL43.GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+                return "Deprecated behavior";
+            case GL43.GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+                return "Undefined behavior";
+            case GL43.GL_DEBUG_TYPE_PORTABILITY:
+                return "Portability";
+            case GL43.GL_DEBUG_TYPE_PERFORMANCE:
+                return "Performance";
+            case GL43.GL_DEBUG_TYPE_OTHER:
+                return "Other";
+            case GL43.GL_DEBUG_TYPE_MARKER:
+                return "Marker";
+            default:
+                return APIUtil.apiUnknownToken(type);
+        }
+    }
+    
+    private static String getDebugSeverity(int severity)
+    {
+        switch (severity)
+        {
+            case GL43.GL_DEBUG_SEVERITY_HIGH:
+                return "High";
+            case GL43.GL_DEBUG_SEVERITY_MEDIUM:
+                return "Medium";
+            case GL43.GL_DEBUG_SEVERITY_LOW:
+                return "Low";
+            case GL43.GL_DEBUG_SEVERITY_NOTIFICATION:
+                return "Notification";
+            default:
+                return APIUtil.apiUnknownToken(severity);
+        }
+    }
+
+    @Deprecated
+    private static void checkError()
+    {
+    }
+    
+    @Deprecated
     private static int getError()
     {
         return GL11.glGetError();
     }
     
-    private static String getErrorString(int error)
+    private static void setDebugMessageCallback(GLDebugMessageCallbackI callback, long userParam)
     {
-        switch (error)
-        {
-            case GL11.GL_INVALID_ENUM:
-                return "Invalid enum";
-            case GL11.GL_INVALID_VALUE:
-                return "Invalid value";
-            case GL11.GL_INVALID_OPERATION:
-                return "Invalid operation";
-            case GL11.GL_STACK_OVERFLOW:
-                return "Stack overflow";
-            case GL11.GL_STACK_UNDERFLOW:
-                return "Stack underflow";
-            case GL11.GL_OUT_OF_MEMORY:
-                return "Out of memory";
-            case GL30.GL_INVALID_FRAMEBUFFER_OPERATION:
-                return "Invalid framebuffer operation";
-            case GL45.GL_CONTEXT_LOST:
-                return "Context lost";
-            default:
-                throw new IllegalArgumentException("Unknown error code " + error);
-        }
+        GL43.glDebugMessageCallback(callback, userParam);
+        checkError();
+    }
+
+    private static void setDebugMessageControl(int source, int type, int severity, IntBuffer ids, boolean enabled)
+    {
+        GL43.glDebugMessageControl(source, type, severity, ids, enabled);
+        checkError();
     }
     
     private static void setCapabilityState(int glEnum, boolean enabled)
@@ -126,6 +179,23 @@ public final class GLAPI
     {
         setCapabilityState(GL30.GL_FRAMEBUFFER_SRGB, enabled);
     }
+    
+    public static void setDebugOutput(boolean enabled)
+    {
+        setCapabilityState(GL43.GL_DEBUG_OUTPUT, enabled);
+    }
+    
+    public static void setDebugOutputSynchronous(boolean enabled)
+    {
+        setCapabilityState(GL43.GL_DEBUG_OUTPUT_SYNCHRONOUS, enabled);
+    }
+
+    private static int getInteger(int parameter)
+    {
+        final int result = GL11.glGetInteger(parameter);
+        checkError();
+        return result;
+    }
 
     public static int genFramebuffer()
     {
@@ -146,9 +216,9 @@ public final class GLAPI
         checkError();
     }
     
-    public static int genTexture()
+    public static int createTexture(int target)
     {
-        final int result = GL11.glGenTextures();
+        final int result = GL45.glCreateTextures(target);
         checkError();
         return result;
     }
@@ -161,10 +231,13 @@ public final class GLAPI
     
     public static void bindTexture(int target, int unit, int handle)
     {
-        GL13.glActiveTexture(GL13.GL_TEXTURE0 + unit);
+        GL45.glBindTextureUnit(unit, handle);
+        checkError();
+        
+        /*GL13.glActiveTexture(GL13.GL_TEXTURE0 + unit);
         checkError();
         GL11.glBindTexture(target, handle);
-        checkError();
+        checkError();*/
     }
     
     public static void bindImageTexture(int unit, int texture, int level, boolean layered, int layer, int access, int format)
