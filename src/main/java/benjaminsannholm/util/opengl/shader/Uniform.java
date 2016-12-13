@@ -29,59 +29,49 @@ public abstract class Uniform<T>
             .put(Matrix4.class, Matrix4Uniform.class)
             .put(int[].class, IntArrayUniform.class)
             .build();
-    
+
     private final ShaderProgram parent;
     private final String name;
-
+    
     private int location = -2; // -1 cannot be used since getUniformLocation might return it
     private T value;
-    private boolean isDirty = true;
-
+    
     public Uniform(ShaderProgram parent, String name)
     {
         this.parent = Preconditions.checkNotNull(parent, "parent");
         this.name = Preconditions.checkNotNull(name, "name");
     }
-    
+
     protected ShaderProgram getParent()
     {
         return parent;
     }
-
+    
     protected int getLocation()
     {
         return location != -2 ? location : (location = GLAPI.getUniformLocation(parent.getHandle(), name));
     }
-
+    
     protected boolean equals(T value1, T value2)
     {
         return value1.equals(value2);
     }
-
+    
     protected T copyValue(T value)
     {
         return value;
     }
-
+    
     public void set(T value)
     {
         Preconditions.checkNotNull(value, "value");
-
+        
         if (!equals(value, this.value))
         {
-            isDirty = true;
             this.value = copyValue(value);
+            upload(this.value);
         }
     }
     
-    public void update()
-    {
-        if (isDirty)
-        {
-            isDirty = false;
-            upload(value);
-        }
-    }
-
     protected abstract void upload(T value);
 }
