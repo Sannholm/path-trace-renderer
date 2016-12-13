@@ -17,28 +17,28 @@ public class IntArrayUniform extends Uniform<int[]>
     {
         super(parent, name);
     }
-    
-    @Override
-    protected boolean equalsValue(int[] value)
-    {
-        return Arrays.equals(value, getValue());
-    }
 
+    @Override
+    protected boolean equals(int[] value1, int[] value2)
+    {
+        return Arrays.equals(value1, value2);
+    }
+    
     @Override
     protected int[] copyValue(int[] value)
     {
         return Arrays.copyOf(value, value.length);
     }
-    
+
     @Override
-    protected void upload()
+    protected void upload(int[] value)
     {
         try (MemoryStack stack = stackPush())
         {
-            final IntBuffer buffer = stack.mallocInt(getValue().length);
-            buffer.put(getValue());
+            final IntBuffer buffer = stack.mallocInt(value.length);
+            buffer.put(value);
             buffer.flip();
-            GLAPI.setUniform1iv(getLocation(), buffer);
+            GLAPI.setUniform1iv(getParent().getHandle(), getLocation(), buffer);
         }
     }
 }

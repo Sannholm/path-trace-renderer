@@ -10,10 +10,10 @@ public class IntegerUniform extends Uniform<Integer>
     {
         super(parent, name);
     }
-
+    
     @Override
-    protected void upload()
+    protected void upload(Integer value)
     {
-        GLAPI.setUniform1i(getLocation(), getValue());
+        GLAPI.setUniform1i(getParent().getHandle(), getLocation(), value);
     }
 }

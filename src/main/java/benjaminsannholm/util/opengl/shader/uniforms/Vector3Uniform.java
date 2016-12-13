@@ -13,9 +13,8 @@ public class Vector3Uniform extends Uniform<Vector3>
     }
 
     @Override
-    protected void upload()
+    protected void upload(Vector3 value)
     {
-        final Vector3 vec = getValue();
-        GLAPI.setUniform3f(getLocation(), vec.getX(), vec.getY(), vec.getZ());
+        GLAPI.setUniform3f(getParent().getHandle(), getLocation(), value.getX(), value.getY(), value.getZ());
     }
 }

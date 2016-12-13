@@ -12,8 +12,8 @@ public class FloatUniform extends Uniform<Float>
     }
     
     @Override
-    protected void upload()
+    protected void upload(Float value)
     {
-        GLAPI.setUniform1f(getLocation(), getValue());
+        GLAPI.setUniform1f(getParent().getHandle(), getLocation(), value);
     }
 }

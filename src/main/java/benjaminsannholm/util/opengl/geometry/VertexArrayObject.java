@@ -13,7 +13,7 @@ public class VertexArrayObject extends GraphicsObject
     @Override
     protected void create()
     {
-        setHandle(GLAPI.genVertexArray());
+        setHandle(GLAPI.createVertexArray());
     }
     
     @Override

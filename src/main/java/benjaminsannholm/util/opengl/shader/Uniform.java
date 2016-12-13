@@ -42,15 +42,20 @@ public abstract class Uniform<T>
         this.parent = Preconditions.checkNotNull(parent, "parent");
         this.name = Preconditions.checkNotNull(name, "name");
     }
-
-    public T getValue()
+    
+    protected ShaderProgram getParent()
     {
-        return value;
+        return parent;
     }
 
-    protected boolean equalsValue(T value)
+    protected int getLocation()
     {
-        return value.equals(getValue());
+        return location != -2 ? location : (location = GLAPI.getUniformLocation(parent.getHandle(), name));
+    }
+
+    protected boolean equals(T value1, T value2)
+    {
+        return value1.equals(value2);
     }
 
     protected T copyValue(T value)
@@ -62,10 +67,11 @@ public abstract class Uniform<T>
     {
         Preconditions.checkNotNull(value, "value");
 
-        if (!equalsValue(value))
+        if (!equals(value, this.value))
+        {
             isDirty = true;
-
-        this.value = copyValue(value);
+            this.value = copyValue(value);
+        }
     }
     
     public void update()
@@ -73,14 +79,9 @@ public abstract class Uniform<T>
         if (isDirty)
         {
             isDirty = false;
-            upload();
+            upload(value);
         }
     }
 
-    protected int getLocation()
-    {
-        return location != -2 ? location : (location = GLAPI.getUniformLocation(parent.getHandle(), name));
-    }
-
-    protected abstract void upload();
+    protected abstract void upload(T value);
 }

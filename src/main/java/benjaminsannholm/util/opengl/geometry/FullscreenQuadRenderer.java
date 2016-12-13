@@ -18,7 +18,6 @@ public final class FullscreenQuadRenderer
         if (fullscreenQuadVbo == null)
         {
             fullscreenQuadVbo = new VertexBufferObject(FULLSCREEN_QUAD_VERTEX_FORMAT.getBytesPerVertex() * 4, Usage.STATIC_DRAW);
-            fullscreenQuadVbo.bind();
             final ByteBuffer dataBuffer = fullscreenQuadVbo.map();
 
             dataBuffer.put((byte)-1).put((byte)-1).put((byte)0).put((byte)0);
@@ -26,8 +25,7 @@ public final class FullscreenQuadRenderer
             dataBuffer.put((byte)-1).put((byte)1).put((byte)0).put((byte)0);
             dataBuffer.put((byte)1).put((byte)1).put((byte)0).put((byte)0);
 
-            VertexBufferObject.unmap();
-            VertexBufferObject.unbind();
+            fullscreenQuadVbo.unmap();
         }
 
         GeometryRenderer.render(RenderMode.TRIANGLE_STRIP, FULLSCREEN_QUAD_VERTEX_FORMAT, fullscreenQuadVbo, 0, 4);

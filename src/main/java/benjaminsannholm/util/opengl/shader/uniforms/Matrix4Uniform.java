@@ -17,16 +17,16 @@ public class Matrix4Uniform extends Uniform<Matrix4>
     {
         super(parent, name);
     }
-    
+
     @Override
-    protected void upload()
+    protected void upload(Matrix4 value)
     {
         try (MemoryStack stack = stackPush())
         {
             final FloatBuffer buffer = stack.mallocFloat(16);
-            getValue().writeTo(buffer);
+            value.writeTo(buffer);
             buffer.flip();
-            GLAPI.setUniformMatrix4(getLocation(), buffer);
+            GLAPI.setUniformMatrix4(getParent().getHandle(), getLocation(), buffer);
         }
     }
 }

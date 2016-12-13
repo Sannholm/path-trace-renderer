@@ -11,11 +11,10 @@ public class Vector4Uniform extends Uniform<Vector4>
     {
         super(parent, name);
     }
-
+    
     @Override
-    protected void upload()
+    protected void upload(Vector4 value)
     {
-        final Vector4 vec = getValue();
-        GLAPI.setUniform4f(getLocation(), vec.getX(), vec.getY(), vec.getZ(), vec.getW());
+        GLAPI.setUniform4f(getParent().getHandle(), getLocation(), value.getX(), value.getY(), value.getZ(), value.getW());
     }
 }

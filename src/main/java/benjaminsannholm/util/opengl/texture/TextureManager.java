@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -23,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
+import com.google.common.math.IntMath;
 import com.google.gson.Gson;
 import com.google.gson.annotations.SerializedName;
 
@@ -70,7 +72,7 @@ public class TextureManager
                 g.dispose();
                 rawImage.flush();
                 rawImage = null;
-
+                
                 final int[] data = ((DataBufferInt)formattedImage.getRaster().getDataBuffer()).getData();
                 formattedImage.flush();
                 formattedImage = null;
@@ -88,9 +90,13 @@ public class TextureManager
                     {
                         case "2d":
                             builder = Texture2D.builder(width, height);
+                            if (config.mipmap)
+                                builder.levels(IntMath.log2(Math.max(width, height), RoundingMode.FLOOR) + 1);
                             break;
                         case "3d":
                             builder = Texture3D.builder(width, height, height / width);
+                            if (config.mipmap)
+                                builder.levels(IntMath.log2(Math.max(width, Math.max(height, height / width)), RoundingMode.FLOOR) + 1);
                             break;
                         default:
                             throw new IllegalArgumentException("Unsupported texture type: " + config.type);
@@ -101,11 +107,10 @@ public class TextureManager
                             .minFilter(config.mipmap ? (config.minBlur ? MinificationFilter.LINEAR_MIPMAP : MinificationFilter.NEAREST_MIPMAP) : (config.minBlur ? MinificationFilter.LINEAR : MinificationFilter.NEAREST));
                     
                     texture = builder.build();
-                    texture.bind(0);
                     texture.upload(buffer, GL12.GL_BGRA, GL12.GL_UNSIGNED_INT_8_8_8_8_REV);
                     
                     if (config.mipmap)
-                        GLAPI.generateMipmaps(texture.getType().getTarget());
+                        GLAPI.generateTextureMipmaps(texture.getHandle(), texture.getType().getTarget());
                 }
                 finally
                 {
@@ -117,7 +122,7 @@ public class TextureManager
                 LOGGER.error("Failed to load texture " + path, e);
                 texture = getTexture("missing.png");
             }
-
+            
             textures.put(path, texture);
         }
         return texture;

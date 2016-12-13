@@ -13,9 +13,8 @@ public class Vector2Uniform extends Uniform<Vector2>
     }
 
     @Override
-    protected void upload()
+    protected void upload(Vector2 value)
     {
-        final Vector2 vec = getValue();
-        GLAPI.setUniform2f(getLocation(), vec.getX(), vec.getY());
+        GLAPI.setUniform2f(getParent().getHandle(), getLocation(), value.getX(), value.getY());
     }
 }

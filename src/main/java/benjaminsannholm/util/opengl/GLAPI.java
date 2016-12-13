@@ -1,23 +1,32 @@
 package benjaminsannholm.util.opengl;
 
+import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.system.MemoryUtil.NULL;
 
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
+import org.lwjgl.opengl.ARBDirectStateAccess;
+import org.lwjgl.opengl.ARBTextureStorage;
+import org.lwjgl.opengl.EXTDirectStateAccess;
+import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
+import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
+import org.lwjgl.opengl.GL32;
 import org.lwjgl.opengl.GL41;
 import org.lwjgl.opengl.GL42;
 import org.lwjgl.opengl.GL43;
 import org.lwjgl.opengl.GL45;
+import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.opengl.GLDebugMessageCallback;
 import org.lwjgl.opengl.GLDebugMessageCallbackI;
 import org.lwjgl.system.APIUtil;
+import org.lwjgl.system.MemoryStack;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -113,28 +122,15 @@ public final class GLAPI
                 return APIUtil.apiUnknownToken(severity);
         }
     }
-
-    @Deprecated
-    private static void checkError()
-    {
-    }
-    
-    @Deprecated
-    private static int getError()
-    {
-        return GL11.glGetError();
-    }
     
     private static void setDebugMessageCallback(GLDebugMessageCallbackI callback, long userParam)
     {
         GL43.glDebugMessageCallback(callback, userParam);
-        checkError();
     }
 
     private static void setDebugMessageControl(int source, int type, int severity, IntBuffer ids, boolean enabled)
     {
         GL43.glDebugMessageControl(source, type, severity, ids, enabled);
-        checkError();
     }
     
     private static void setCapabilityState(int glEnum, boolean enabled)
@@ -147,7 +143,6 @@ public final class GLAPI
         {
             GL11.glDisable(glEnum);
         }
-        checkError();
     }
     
     public static void setDepthTest(boolean enabled)
@@ -158,21 +153,6 @@ public final class GLAPI
     public static void setCullFace(boolean enabled)
     {
         setCapabilityState(GL11.GL_CULL_FACE, enabled);
-    }
-    
-    public static void setTexture1D(boolean enabled)
-    {
-        setCapabilityState(GL11.GL_TEXTURE_1D, enabled);
-    }
-    
-    public static void setTexture2D(boolean enabled)
-    {
-        setCapabilityState(GL11.GL_TEXTURE_2D, enabled);
-    }
-    
-    public static void setTexture3D(boolean enabled)
-    {
-        setCapabilityState(GL12.GL_TEXTURE_3D, enabled);
     }
     
     public static void setFramebufferSRGB(boolean enabled)
@@ -190,60 +170,190 @@ public final class GLAPI
         setCapabilityState(GL43.GL_DEBUG_OUTPUT_SYNCHRONOUS, enabled);
     }
 
-    private static int getInteger(int parameter)
+    public static int getInteger(int param)
     {
-        final int result = GL11.glGetInteger(parameter);
-        checkError();
-        return result;
+        return GL11.glGetInteger(param);
+    }
+    
+    public static void setViewport(int x, int y, int width, int height)
+    {
+        GL11.glViewport(x, y, width, height);
     }
 
-    public static int genFramebuffer()
+    public static int createFramebuffer()
     {
-        final int result = GL30.glGenFramebuffers();
-        checkError();
-        return result;
-    }
-    
-    public static void deleteFramebuffer(int handle)
-    {
-        GL30.glDeleteFramebuffers(handle);
-        checkError();
-    }
-    
-    public static void bindFramebuffer(int handle)
-    {
+        final GLCapabilities caps = GL.getCapabilities();
+        if (caps.OpenGL45)
+            return GL45.glCreateFramebuffers();
+        if (caps.GL_ARB_direct_state_access)
+            return ARBDirectStateAccess.glCreateFramebuffers();
+        final int handle = GL30.glGenFramebuffers();
         GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, handle);
-        checkError();
+        GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, 0);
+        return handle;
+    }
+    
+    public static void deleteFramebuffer(int framebuffer)
+    {
+        GL30.glDeleteFramebuffers(framebuffer);
+    }
+    
+    public static void bindFramebuffer(int framebuffer)
+    {
+        GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer);
+    }
+    
+    public static void setFramebufferAttachment(int framebuffer, int attachment, int texture, int level)
+    {
+        final GLCapabilities caps = GL.getCapabilities();
+        if (caps.OpenGL45)
+        {
+            GL45.glNamedFramebufferTexture(framebuffer, attachment, texture, level);
+        }
+        else if (caps.GL_ARB_direct_state_access)
+        {
+            ARBDirectStateAccess.glNamedFramebufferTexture(framebuffer, attachment, texture, level);
+        }
+        else if (caps.GL_EXT_direct_state_access)
+        {
+            EXTDirectStateAccess.glNamedFramebufferTextureEXT(framebuffer, attachment, texture, level);
+        }
+        else
+        {
+            GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer);
+            GL32.glFramebufferTexture(GL30.GL_FRAMEBUFFER, attachment, texture, level);
+        }
+    }
+    
+    public static void setFramebufferAttachment(int framebuffer, int attachment, int texture)
+    {
+        setFramebufferAttachment(framebuffer, attachment, texture, 0);
+    }
+    
+    public static void setDrawBuffers(int framebuffer, IntBuffer bufs)
+    {
+        final GLCapabilities caps = GL.getCapabilities();
+        if (caps.OpenGL45)
+        {
+            GL45.glNamedFramebufferDrawBuffers(framebuffer, bufs);
+        }
+        else if (caps.GL_ARB_direct_state_access)
+        {
+            ARBDirectStateAccess.glNamedFramebufferDrawBuffers(framebuffer, bufs);
+        }
+        else if (caps.GL_EXT_direct_state_access)
+        {
+            EXTDirectStateAccess.glFramebufferDrawBuffersEXT(framebuffer, bufs);
+        }
+        else
+        {
+            GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer);
+            GL20.glDrawBuffers(bufs);
+        }
+    }
+    
+    public static int checkFramebufferStatus(int framebuffer)
+    {
+        final GLCapabilities caps = GL.getCapabilities();
+        if (caps.OpenGL45)
+            return GL45.glCheckNamedFramebufferStatus(framebuffer, GL30.GL_FRAMEBUFFER);
+        if (caps.GL_ARB_direct_state_access)
+            return ARBDirectStateAccess.glCheckNamedFramebufferStatus(framebuffer, GL30.GL_FRAMEBUFFER);
+        if (caps.GL_EXT_direct_state_access)
+            return EXTDirectStateAccess.glCheckNamedFramebufferStatusEXT(framebuffer, GL30.GL_FRAMEBUFFER);
+        GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer);
+        return GL30.glCheckFramebufferStatus(GL30.GL_FRAMEBUFFER);
+    }
+
+    public static void clearBufferColor(int framebuffer, int drawbuffer, float r, float g, float b, float a)
+    {
+        try (MemoryStack stack = stackPush())
+        {
+            final FloatBuffer value = stack.floats(r, g, b, a);
+
+            final GLCapabilities caps = GL.getCapabilities();
+            if (caps.OpenGL45)
+            {
+                GL45.glClearNamedFramebufferfv(framebuffer, GL11.GL_COLOR, drawbuffer, value);
+            }
+            else if (caps.GL_ARB_direct_state_access)
+            {
+                ARBDirectStateAccess.glClearNamedFramebufferfv(framebuffer, GL11.GL_COLOR, drawbuffer, value);
+            }
+            else
+            {
+                GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer);
+                GL30.glClearBufferfv(GL11.GL_COLOR, drawbuffer, value);
+            }
+        }
+    }
+    
+    public static void clearBufferDepth(int framebuffer, float depth)
+    {
+        try (MemoryStack stack = stackPush())
+        {
+            final FloatBuffer value = stack.floats(depth);
+
+            final GLCapabilities caps = GL.getCapabilities();
+            if (caps.OpenGL45)
+            {
+                GL45.glClearNamedFramebufferfv(framebuffer, GL11.GL_DEPTH, 0, value);
+            }
+            else if (caps.GL_ARB_direct_state_access)
+            {
+                ARBDirectStateAccess.glClearNamedFramebufferfv(framebuffer, GL11.GL_DEPTH, 0, value);
+            }
+            else
+            {
+                GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer);
+                GL30.glClearBufferfv(GL11.GL_DEPTH, 0, value);
+            }
+        }
     }
     
     public static int createTexture(int target)
     {
-        final int result = GL45.glCreateTextures(target);
-        checkError();
-        return result;
-    }
-    
-    public static void deleteTexture(int handle)
-    {
-        GL11.glDeleteTextures(handle);
-        checkError();
-    }
-    
-    public static void bindTexture(int target, int unit, int handle)
-    {
-        GL45.glBindTextureUnit(unit, handle);
-        checkError();
-        
-        /*GL13.glActiveTexture(GL13.GL_TEXTURE0 + unit);
-        checkError();
+        final GLCapabilities caps = GL.getCapabilities();
+        if (caps.OpenGL45)
+            return GL45.glCreateTextures(target);
+        if (caps.GL_ARB_direct_state_access)
+            return ARBDirectStateAccess.glCreateTextures(target);
+        final int handle = GL11.glGenTextures();
         GL11.glBindTexture(target, handle);
-        checkError();*/
+        GL11.glBindTexture(target, 0);
+        return handle;
+    }
+    
+    public static void deleteTexture(int texture)
+    {
+        GL11.glDeleteTextures(texture);
+    }
+    
+    public static void bindTexture(int target, int unit, int texture)
+    {
+        final GLCapabilities caps = GL.getCapabilities();
+        if (caps.OpenGL45)
+        {
+            GL45.glBindTextureUnit(unit, texture);
+        }
+        else if (caps.GL_ARB_direct_state_access)
+        {
+            ARBDirectStateAccess.glBindTextureUnit(unit, texture);
+        }
+        else if (caps.GL_EXT_direct_state_access)
+        {
+            EXTDirectStateAccess.glBindMultiTextureEXT(GL13.GL_TEXTURE0 + unit, target, texture);
+        }
+        else
+        {
+            GL13.glActiveTexture(GL13.GL_TEXTURE0 + unit);
+            GL11.glBindTexture(target, texture);
+        }
     }
     
     public static void bindImageTexture(int unit, int texture, int level, boolean layered, int layer, int access, int format)
     {
         GL42.glBindImageTexture(unit, texture, level, layered, layer, access, format);
-        checkError();
     }
     
     public static void bindImageTexture(int unit, int texture, int access, int format)
@@ -251,406 +361,475 @@ public final class GLAPI
         bindImageTexture(unit, texture, 0, false, 0, access, format);
     }
     
-    public static void initTexImage(int target, int level, int internalFormat, int width, int height, int depth, int format, int type, ByteBuffer pixels)
+    public static void initTextureImage(int texture, int target, int levels, int internalFormat, int width, int height, int depth)
     {
+        final GLCapabilities caps = GL.getCapabilities();
         switch (target)
         {
             case GL11.GL_TEXTURE_2D:
-                GL11.glTexImage2D(GL11.GL_TEXTURE_2D, level, internalFormat, width, height, 0, format, type, pixels);
+                if (caps.OpenGL45)
+                {
+                    GL45.glTextureStorage2D(texture, levels, internalFormat, width, height);
+                }
+                else if (caps.GL_ARB_direct_state_access)
+                {
+                    ARBDirectStateAccess.glTextureStorage2D(texture, levels, internalFormat, width, height);
+                }
+                else if (caps.GL_ARB_texture_storage)
+                {
+                    ARBTextureStorage.glTextureStorage2DEXT(texture, target, levels, internalFormat, width, height);
+                }
+                else
+                {
+                    GL11.glBindTexture(target, texture);
+                    GL42.glTexStorage2D(target, levels, internalFormat, width, height);
+                }
                 break;
             case GL12.GL_TEXTURE_3D:
-                GL12.glTexImage3D(GL12.GL_TEXTURE_3D, level, internalFormat, width, height, depth, 0, format, type, pixels);
+                if (caps.OpenGL45)
+                {
+                    GL45.glTextureStorage3D(texture, levels, internalFormat, width, height, depth);
+                }
+                else if (caps.GL_ARB_direct_state_access)
+                {
+                    ARBDirectStateAccess.glTextureStorage3D(texture, levels, internalFormat, width, height, depth);
+                }
+                else if (caps.GL_ARB_texture_storage)
+                {
+                    ARBTextureStorage.glTextureStorage3DEXT(texture, target, levels, internalFormat, width, height, depth);
+                }
+                else
+                {
+                    GL11.glBindTexture(target, texture);
+                    GL42.glTexStorage3D(target, levels, internalFormat, width, height, depth);
+                }
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported texture target");
         }
-        checkError();
     }
     
-    public static void setTexParameteri(int target, int param, int value)
+    public static void setTextureParameteri(int texture, int target, int param, int value)
     {
-        GL11.glTexParameteri(target, param, value);
-        checkError();
+        final GLCapabilities caps = GL.getCapabilities();
+        if (caps.OpenGL45)
+        {
+            GL45.glTextureParameteri(texture, param, value);
+        }
+        else if (caps.GL_ARB_direct_state_access)
+        {
+            ARBDirectStateAccess.glTextureParameteri(texture, param, value);
+        }
+        else if (caps.GL_EXT_direct_state_access)
+        {
+            EXTDirectStateAccess.glTextureParameteriEXT(texture, target, param, value);
+        }
+        else
+        {
+            GL11.glBindTexture(target, texture);
+            GL11.glTexParameteri(target, param, value);
+        }
     }
     
-    public static void uploadTexImage(int target, int level, int x, int y, int z, int width, int height, int depth, int format, int type, ByteBuffer buffer)
+    public static void uploadTextureImage(int texture, int target, int level, int x, int y, int z, int width, int height, int depth, int format, int type, ByteBuffer buffer)
     {
+        final GLCapabilities caps = GL.getCapabilities();
         switch (target)
         {
             case GL11.GL_TEXTURE_2D:
-                GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, level, x, y, width, height, format, type, buffer);
+                if (caps.OpenGL45)
+                {
+                    GL45.glTextureSubImage2D(texture, level, x, y, width, height, format, type, buffer);
+                }
+                else if (caps.GL_ARB_direct_state_access)
+                {
+                    ARBDirectStateAccess.glTextureSubImage2D(texture, level, x, y, width, height, format, type, buffer);
+                }
+                else if (caps.GL_EXT_direct_state_access)
+                {
+                    EXTDirectStateAccess.glTextureSubImage2DEXT(texture, target, level, x, y, width, height, format, type, buffer);
+                }
+                else
+                {
+                    GL11.glBindTexture(target, texture);
+                    GL11.glTexSubImage2D(target, level, x, y, width, height, format, type, buffer);
+                }
                 break;
             case GL12.GL_TEXTURE_3D:
-                GL12.glTexSubImage3D(GL12.GL_TEXTURE_3D, level, x, y, z, width, height, depth, format, type, buffer);
+                if (caps.OpenGL45)
+                {
+                    GL45.glTextureSubImage3D(texture, level, x, y, z, width, height, depth, format, type, buffer);
+                }
+                else if (caps.GL_ARB_direct_state_access)
+                {
+                    ARBDirectStateAccess.glTextureSubImage3D(texture, level, x, y, z, width, height, depth, format, type, buffer);
+                }
+                else if (caps.GL_EXT_direct_state_access)
+                {
+                    EXTDirectStateAccess.glTextureSubImage3DEXT(texture, target, level, x, y, z, width, height, depth, format, type, buffer);
+                }
+                else
+                {
+                    GL11.glBindTexture(target, texture);
+                    GL12.glTexSubImage3D(target, level, x, y, z, width, height, depth, format, type, buffer);
+                }
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported texture target");
         }
-        checkError();
     }
     
-    public static void generateMipmaps(int target)
+    public static void generateTextureMipmaps(int texture, int target)
     {
-        GL30.glGenerateMipmap(target);
-        checkError();
-    }
-    
-    public static void setDrawBuffers(IntBuffer data)
-    {
-        GL20.glDrawBuffers(data);
-        checkError();
-    }
-    
-    public static void setFramebufferAttachment(int attachment, int target, int texture, int level, int layer)
-    {
-        switch (target)
+        final GLCapabilities caps = GL.getCapabilities();
+        if (caps.OpenGL45)
         {
-            case GL11.GL_TEXTURE_2D:
-                GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, attachment, GL11.GL_TEXTURE_2D, texture, level);
-                break;
-            case GL12.GL_TEXTURE_3D:
-                GL30.glFramebufferTexture3D(GL30.GL_FRAMEBUFFER, attachment, GL12.GL_TEXTURE_3D, texture, level, layer);
-                break;
-            default:
-                throw new IllegalArgumentException("Unsupported texture target");
+            GL45.glGenerateTextureMipmap(texture);
         }
-        checkError();
-    }
-    
-    public static void setFramebufferAttachment(int attachment, int target, int texture)
-    {
-        setFramebufferAttachment(attachment, target, texture, 0, 0);
-    }
-    
-    public static void setViewport(int x, int y, int width, int height)
-    {
-        GL11.glViewport(x, y, width, height);
-        checkError();
-    }
-    
-    public static void clearColor(float red, float green, float blue, float alpha)
-    {
-        GL11.glClearColor(red, green, blue, alpha);
-        checkError();
-        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT);
-        checkError();
-    }
-    
-    public static void clearDepth(float depth)
-    {
-        GL11.glClearDepth(depth);
-        checkError();
-        GL11.glClear(GL11.GL_DEPTH_BUFFER_BIT);
-        checkError();
+        else if (caps.GL_ARB_direct_state_access)
+        {
+            ARBDirectStateAccess.glGenerateTextureMipmap(texture);
+        }
+        else if (caps.GL_EXT_direct_state_access)
+        {
+            EXTDirectStateAccess.glGenerateTextureMipmapEXT(texture, target);
+        }
+        else
+        {
+            GL11.glBindTexture(target, texture);
+            GL30.glGenerateMipmap(target);
+        }
     }
     
     public static int createShader(int type)
     {
-        final int result = GL20.glCreateShader(type);
-        checkError();
-        return result;
+        return GL20.glCreateShader(type);
     }
     
-    public static void deleteShader(int handle)
+    public static void deleteShader(int shader)
     {
-        GL20.glDeleteShader(handle);
-        checkError();
+        GL20.glDeleteShader(shader);
+    }
+    
+    public static void setShaderSource(int shader, String source)
+    {
+        GL20.glShaderSource(shader, source);
+    }
+    
+    public static void compileShader(int shader)
+    {
+        GL20.glCompileShader(shader);
+    }
+    
+    public static int getShaderi(int shader, int param)
+    {
+        return GL20.glGetShaderi(shader, param);
+    }
+    
+    public static String getShaderInfoLog(int shader)
+    {
+        return GL20.glGetShaderInfoLog(shader);
+    }
+    
+    public static int createProgram()
+    {
+        return GL20.glCreateProgram();
+    }
+    
+    public static void deleteProgram(int program)
+    {
+        GL20.glDeleteProgram(program);
+    }
+    
+    public static void useProgram(int program)
+    {
+        GL20.glUseProgram(program);
     }
     
     public static void attachShader(int program, int shader)
     {
         GL20.glAttachShader(program, shader);
-        checkError();
     }
     
     public static void detachShader(int program, int shader)
     {
         GL20.glDetachShader(program, shader);
-        checkError();
-    }
-    
-    public static void setShaderSource(int handle, String source)
-    {
-        GL20.glShaderSource(handle, source);
-        checkError();
-    }
-    
-    public static void compileShader(int handle)
-    {
-        GL20.glCompileShader(handle);
-        checkError();
-    }
-    
-    public static int getShaderi(int handle, int parameter)
-    {
-        final int result = GL20.glGetShaderi(handle, parameter);
-        checkError();
-        return result;
-    }
-    
-    public static String getShaderInfoLog(int handle)
-    {
-        final String result = GL20.glGetShaderInfoLog(handle);
-        checkError();
-        return result;
-    }
-    
-    public static int createProgram()
-    {
-        final int result = GL20.glCreateProgram();
-        checkError();
-        return result;
-    }
-    
-    public static void deleteProgram(int handle)
-    {
-        GL20.glDeleteProgram(handle);
-        checkError();
     }
     
     public static void bindAttribLocation(int program, String name, int location)
     {
         GL20.glBindAttribLocation(program, location, name);
-        checkError();
     }
     
     public static void bindFragDataLocation(int program, String name, int location)
     {
         GL30.glBindFragDataLocation(program, location, name);
-        checkError();
     }
     
-    public static void linkProgram(int handle)
+    public static void linkProgram(int program)
     {
-        GL20.glLinkProgram(handle);
-        checkError();
+        GL20.glLinkProgram(program);
     }
     
-    public static int getProgrami(int handle, int parameter)
+    public static int getProgrami(int program, int param)
     {
-        final int result = GL20.glGetProgrami(handle, parameter);
-        checkError();
-        return result;
+        return GL20.glGetProgrami(program, param);
     }
     
-    public static String getProgramInfoLog(int handle)
+    public static String getProgramInfoLog(int program)
     {
-        final String result = GL20.glGetProgramInfoLog(handle);
-        checkError();
-        return result;
+        return GL20.glGetProgramInfoLog(program);
     }
     
     public static void getProgramBinary(int program, IntBuffer length, IntBuffer format, ByteBuffer binary)
     {
         GL41.glGetProgramBinary(program, length, format, binary);
-        checkError();
-    }
-    
-    public static void useProgram(int handle)
-    {
-        GL20.glUseProgram(handle);
-        checkError();
     }
     
     public static int getUniformLocation(int program, String name)
     {
-        final int result = GL20.glGetUniformLocation(program, name);
-        checkError();
-        return result;
+        return GL20.glGetUniformLocation(program, name);
     }
     
-    public static void setUniform1f(int location, float v0)
+    public static void setUniform1f(int program, int location, float v0)
     {
-        GL20.glUniform1f(location, v0);
-        checkError();
+        GL41.glProgramUniform1f(program, location, v0);
     }
     
-    public static void setUniform2f(int location, float v0, float v1)
+    public static void setUniform2f(int program, int location, float v0, float v1)
     {
-        GL20.glUniform2f(location, v0, v1);
-        checkError();
+        GL41.glProgramUniform2f(program, location, v0, v1);
     }
     
-    public static void setUniform3f(int location, float v0, float v1, float v2)
+    public static void setUniform3f(int program, int location, float v0, float v1, float v2)
     {
-        GL20.glUniform3f(location, v0, v1, v2);
-        checkError();
+        GL41.glProgramUniform3f(program, location, v0, v1, v2);
     }
     
-    public static void setUniform4f(int location, float v0, float v1, float v2, float v3)
+    public static void setUniform4f(int program, int location, float v0, float v1, float v2, float v3)
     {
-        GL20.glUniform4f(location, v0, v1, v2, v3);
-        checkError();
+        GL41.glProgramUniform4f(program, location, v0, v1, v2, v3);
     }
 
-    public static void setUniform1i(int location, int v0)
+    public static void setUniform1i(int program, int location, int v0)
     {
-        GL20.glUniform1i(location, v0);
-        checkError();
+        GL41.glProgramUniform1i(program, location, v0);
     }
     
-    public static void setUniform2i(int location, int v0, int v1)
+    public static void setUniform2i(int program, int location, int v0, int v1)
     {
-        GL20.glUniform2i(location, v0, v1);
-        checkError();
+        GL41.glProgramUniform2i(program, location, v0, v1);
     }
     
-    public static void setUniform3i(int location, int v0, int v1, int v2)
+    public static void setUniform3i(int program, int location, int v0, int v1, int v2)
     {
-        GL20.glUniform3i(location, v0, v1, v2);
-        checkError();
+        GL41.glProgramUniform3i(program, location, v0, v1, v2);
     }
     
-    public static void setUniform4i(int location, int v0, int v1, int v2, int v3)
+    public static void setUniform4i(int program, int location, int v0, int v1, int v2, int v3)
     {
-        GL20.glUniform4i(location, v0, v1, v2, v3);
-        checkError();
+        GL41.glProgramUniform4i(program, location, v0, v1, v2, v3);
     }
     
-    public static void setUniform1fv(int location, FloatBuffer buffer)
+    public static void setUniform1fv(int program, int location, FloatBuffer buffer)
     {
-        GL20.glUniform1fv(location, buffer);
-        checkError();
+        GL41.glProgramUniform1fv(program, location, buffer);
     }
     
-    public static void setUniform2fv(int location, FloatBuffer buffer)
+    public static void setUniform2fv(int program, int location, FloatBuffer buffer)
     {
-        GL20.glUniform2fv(location, buffer);
-        checkError();
+        GL41.glProgramUniform2fv(program, location, buffer);
     }
     
-    public static void setUniform3fv(int location, FloatBuffer buffer)
+    public static void setUniform3fv(int program, int location, FloatBuffer buffer)
     {
-        GL20.glUniform3fv(location, buffer);
-        checkError();
+        GL41.glProgramUniform3fv(program, location, buffer);
     }
     
-    public static void setUniform4fv(int location, FloatBuffer buffer)
+    public static void setUniform4fv(int program, int location, FloatBuffer buffer)
     {
-        GL20.glUniform4fv(location, buffer);
-        checkError();
+        GL41.glProgramUniform4fv(program, location, buffer);
     }
     
-    public static void setUniform1iv(int location, IntBuffer buffer)
+    public static void setUniform1iv(int program, int location, IntBuffer buffer)
     {
-        GL20.glUniform1iv(location, buffer);
-        checkError();
+        GL41.glProgramUniform1iv(program, location, buffer);
     }
     
-    public static void setUniform2iv(int location, IntBuffer buffer)
+    public static void setUniform2iv(int program, int location, IntBuffer buffer)
     {
-        GL20.glUniform2iv(location, buffer);
-        checkError();
+        GL41.glProgramUniform2iv(program, location, buffer);
     }
     
-    public static void setUniform3iv(int location, IntBuffer buffer)
+    public static void setUniform3iv(int program, int location, IntBuffer buffer)
     {
-        GL20.glUniform3iv(location, buffer);
-        checkError();
+        GL41.glProgramUniform3iv(program, location, buffer);
     }
     
-    public static void setUniform4iv(int location, IntBuffer buffer)
+    public static void setUniform4iv(int program, int location, IntBuffer buffer)
     {
-        GL20.glUniform4iv(location, buffer);
-        checkError();
+        GL41.glProgramUniform4iv(program, location, buffer);
     }
     
-    public static void setUniformMatrix4(int location, FloatBuffer buffer)
+    public static void setUniformMatrix4(int program, int location, FloatBuffer buffer)
     {
-        GL20.glUniformMatrix4fv(location, false, buffer);
-        checkError();
+        GL41.glProgramUniformMatrix4fv(program, location, false, buffer);
     }
     
     public static void dispatchCompute(int numGroupsX, int numGroupsY, int numGroupsZ)
     {
         GL43.glDispatchCompute(numGroupsX, numGroupsY, numGroupsZ);
-        checkError();
     }
     
-    public static void enableVertexAttribArray(int index)
+    public static int createBuffer()
     {
-        GL20.glEnableVertexAttribArray(index);
-        checkError();
+        final GLCapabilities caps = GL.getCapabilities();
+        if (caps.OpenGL45)
+            return GL45.glCreateBuffers();
+        if (caps.GL_ARB_direct_state_access)
+            return ARBDirectStateAccess.glCreateBuffers();
+        return GL15.glGenBuffers(); // No need to bind
     }
     
-    public static void disableVertexAttribArray(int index)
+    public static void deleteBuffer(int buffer)
     {
-        GL20.glDisableVertexAttribArray(index);
-        checkError();
+        GL15.glDeleteBuffers(buffer);
     }
     
-    public static void setVertexAttribPointer(int index, int size, int type, boolean normalized, int stride, int offset)
+    public static void bindBuffer(int target, int buffer)
     {
-        GL20.glVertexAttribPointer(index, size, type, normalized, stride, offset);
-        checkError();
+        GL15.glBindBuffer(target, buffer);
     }
     
-    public static int genBuffer()
+    // TODO: Buffer storage
+    public static void initBufferData(int buffer, int target, int size, int usage)
     {
-        final int result = GL15.glGenBuffers();
-        checkError();
-        return result;
+        final GLCapabilities caps = GL.getCapabilities();
+        if (caps.OpenGL45)
+        {
+            GL45.glNamedBufferData(buffer, size, usage);
+        }
+        else if (caps.GL_ARB_direct_state_access)
+        {
+            ARBDirectStateAccess.glNamedBufferData(buffer, size, usage);
+        }
+        else if (caps.GL_EXT_direct_state_access)
+        {
+            EXTDirectStateAccess.glNamedBufferDataEXT(buffer, size, usage);
+        }
+        else
+        {
+            GL15.glBindBuffer(target, buffer);
+            GL15.glBufferData(target, size, usage);
+        }
     }
     
-    public static void bindBuffer(int target, int handle)
+    public static ByteBuffer mapBuffer(int buffer, int target, int access, int offset, int length)
     {
-        GL15.glBindBuffer(target, handle);
-        checkError();
+        final GLCapabilities caps = GL.getCapabilities();
+        if (caps.OpenGL45)
+            return GL45.glMapNamedBufferRange(buffer, offset, length, access);
+        if (caps.GL_ARB_direct_state_access)
+            return ARBDirectStateAccess.glMapNamedBufferRange(buffer, offset, length, access);
+        if (caps.GL_EXT_direct_state_access)
+            return EXTDirectStateAccess.glMapNamedBufferRangeEXT(buffer, offset, length, access);
+        GL15.glBindBuffer(target, buffer);
+        return GL30.glMapBufferRange(target, offset, length, access);
     }
     
-    public static void deleteBuffer(int handle)
+    public static boolean unmapBuffer(int buffer, int target)
     {
-        GL15.glDeleteBuffers(handle);
-        checkError();
-    }
-    
-    public static void initBufferData(int target, int size, int usage)
-    {
-        GL15.glBufferData(target, size, usage);
-        checkError();
-    }
-    
-    public static ByteBuffer mapBuffer(int target, int access, int offset, int length)
-    {
-        final ByteBuffer result = GL30.glMapBufferRange(target, offset, length, access, null);
-        checkError();
-        return result;
-    }
-    
-    public static void unmapBuffer(int target)
-    {
-        GL15.glUnmapBuffer(target);
-        checkError();
+        final GLCapabilities caps = GL.getCapabilities();
+        if (caps.OpenGL45)
+            return GL45.glUnmapNamedBuffer(buffer);
+        if (caps.GL_ARB_direct_state_access)
+            return ARBDirectStateAccess.glUnmapNamedBuffer(buffer);
+        if (caps.GL_EXT_direct_state_access)
+            return EXTDirectStateAccess.glUnmapNamedBufferEXT(buffer);
+        return GL15.glUnmapBuffer(target);
     }
 
-    public static int genVertexArray()
+    public static int createVertexArray()
     {
-        final int result = GL30.glGenVertexArrays();
-        checkError();
-        return result;
-    }
-    
-    public static void bindVertexArray(int handle)
-    {
+        final GLCapabilities caps = GL.getCapabilities();
+        if (caps.OpenGL45)
+            return GL45.glCreateVertexArrays();
+        if (caps.GL_ARB_direct_state_access)
+            return ARBDirectStateAccess.glCreateVertexArrays();
+        final int handle = GL30.glGenVertexArrays();
         GL30.glBindVertexArray(handle);
-        checkError();
+        GL30.glBindVertexArray(0);
+        return handle;
     }
     
-    public static void deleteVertexArray(int handle)
+    public static void deleteVertexArray(int vao)
     {
-        GL30.glDeleteVertexArrays(handle);
-        checkError();
+        GL30.glDeleteVertexArrays(vao);
+    }
+    
+    public static void bindVertexArray(int vao)
+    {
+        GL30.glBindVertexArray(vao);
+    }
+    
+    public static void enableVertexAttribArray(int vao, int index)
+    {
+        final GLCapabilities caps = GL.getCapabilities();
+        if (caps.OpenGL45)
+        {
+            GL45.glEnableVertexArrayAttrib(vao, index);
+        }
+        else if (caps.GL_ARB_direct_state_access)
+        {
+            ARBDirectStateAccess.glEnableVertexArrayAttrib(vao, index);
+        }
+        else if (caps.GL_EXT_direct_state_access)
+        {
+            EXTDirectStateAccess.glEnableVertexArrayAttribEXT(vao, index);
+        }
+        else
+        {
+            GL30.glBindVertexArray(vao);
+            GL20.glEnableVertexAttribArray(index);
+        }
+    }
+    
+    public static void disableVertexAttribArray(int vao, int index)
+    {
+        final GLCapabilities caps = GL.getCapabilities();
+        if (caps.OpenGL45)
+        {
+            GL45.glDisableVertexArrayAttrib(vao, index);
+        }
+        else if (caps.GL_ARB_direct_state_access)
+        {
+            ARBDirectStateAccess.glDisableVertexArrayAttrib(vao, index);
+        }
+        else if (caps.GL_EXT_direct_state_access)
+        {
+            EXTDirectStateAccess.glDisableVertexArrayAttribEXT(vao, index);
+        }
+        else
+        {
+            GL30.glBindVertexArray(vao);
+            GL20.glDisableVertexAttribArray(index);
+        }
+    }
+    
+    // TODO: Replace with format and binding functions
+    public static void setVertexAttribPointer(int vao, int index, int size, int type, boolean normalized, int stride, int offset)
+    {
+        GL30.glBindVertexArray(vao);
+        GL20.glVertexAttribPointer(index, size, type, normalized, stride, offset);
     }
 
     public static void drawArrays(int mode, int start, int count)
     {
         GL11.glDrawArrays(mode, start, count);
-        checkError();
     }
     
     public static void memoryBarrier(int barriers)
     {
         GL42.glMemoryBarrier(barriers);
-        checkError();
     }
 }
