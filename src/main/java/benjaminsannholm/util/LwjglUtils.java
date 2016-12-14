@@ -11,18 +11,23 @@ public class LwjglUtils
     {
         for (Field field : GLCapabilities.class.getDeclaredFields())
         {
-            if (field.getType() == boolean.class)
+            field.setAccessible(true);
+            try
             {
-                field.setAccessible(true);
-                try
+                if (field.getType() == boolean.class)
                 {
                     final boolean val = field.getBoolean(GL.getCapabilities());
                     System.out.println(field.getName() + ": " + val);
                 }
-                catch (IllegalArgumentException | IllegalAccessException e)
+                else if (field.getType() == long.class)
                 {
-                    e.printStackTrace();
+                    final long val = field.getLong(GL.getCapabilities());
+                    System.out.println(field.getName() + ": " + val);
                 }
+            }
+            catch (IllegalArgumentException | IllegalAccessException e)
+            {
+                e.printStackTrace();
             }
         }
     }
