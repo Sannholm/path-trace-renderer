@@ -55,7 +55,6 @@ import benjaminsannholm.util.math.MathUtils;
 import benjaminsannholm.util.math.Matrix4;
 import benjaminsannholm.util.math.Quaternion;
 import benjaminsannholm.util.math.Transform;
-import benjaminsannholm.util.math.Vector2;
 import benjaminsannholm.util.math.Vector3;
 import benjaminsannholm.util.math.Vector4;
 import benjaminsannholm.util.opengl.GLAPI;
@@ -146,7 +145,7 @@ public class Bootstrap
     {
         setupGLWindow();
         //GLAPI.setFramebufferSRGB(true);
-
+        
         setupScene(sceneTime);
     }
     
@@ -327,14 +326,13 @@ public class Bootstrap
         {
             swSetup.start();
             
-            mainFrameBufferTex.bindImage(0, Access.WRITE, Format.RGBA32F);
+            mainFrameBufferTex.bindImage(0, Access.READ_WRITE, Format.RGBA32F);
             
             final ShaderProgram program1 = shaderManager.getProgram("compute_draw");
             program1.setUniform("framebuffer", 0);
-            program1.setUniform("framebufferSize", Vector2.create(mainFrameBufferTex.getWidth(), mainFrameBufferTex.getHeight()));
+            program1.setUniform("numPasses", numPasses + 1);
             program1.setUniform("randInit", Vector4.create(RAND.nextFloat(), RAND.nextFloat(), RAND.nextFloat(), RAND.nextFloat()));
             program1.setUniform("time", (float)timeElapsed);
-            program1.setUniform("numPasses", numPasses + 1);
             program1.setUniform("cam00", cam00);
             program1.setUniform("cam10", cam10);
             program1.setUniform("cam01", cam01);
@@ -354,7 +352,7 @@ public class Bootstrap
             swCompute.stop();
             
             swBarrier.start();
-            GLAPI.memoryBarrier(GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+            GLAPI.memoryBarrier(GL42.GL_TEXTURE_FETCH_BARRIER_BIT | GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
             swBarrier.stop();
         }
         

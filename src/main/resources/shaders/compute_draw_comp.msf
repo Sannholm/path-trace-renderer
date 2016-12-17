@@ -1,6 +1,8 @@
 #include math
 #include random
 
+layout(local_size_x = 16, local_size_y = 16) in;
+
 const uint BRDF_DIFFUSE = 0;
 const uint BRDF_SPECULAR = 1;
 const uint BRDF_REFRACT = 2;
@@ -64,8 +66,6 @@ Sphere makeSphere(const vec3 center, const float radius, const Material material
 AABB makeAABB(const vec3 center, const vec3 size, const Material material);
 Disk makeDisk(const vec3 center, const float radius, const vec3 normal, const Material material);
 
-layout(local_size_x = 16, local_size_y = 16) in;
-
 const float EPSILON = 1e-4;
 
 const Intersection NO_INTERSECTION = Intersection(-1, vec3(0), vec3(0), false, Material(0, vec3(0), vec3(0), 0, DISNEY_NULL));
@@ -89,12 +89,13 @@ const bool PROGRESSIVE = true;
 const int SAMPLES_PER_PIXEL = 100;
 const int NUM_BOUNCES = 5;
 
-layout(rgba32f) uniform image2D framebuffer;
-uniform vec2 framebufferSize;
+const vec3 SUN_NORMAL = normalize(vec3(0.5, -0.5, -1));
 
+layout(rgba32f) uniform restrict image2D framebuffer;
+
+uniform int numPasses;
 uniform vec4 randInit;
 uniform float time;
-uniform int numPasses;
 
 uniform vec4 cam00;
 uniform vec4 cam10;
@@ -102,10 +103,14 @@ uniform vec4 cam01;
 uniform vec4 cam11;
 uniform vec3 camPos;
 
+const ivec2 framebufferSize = imageSize(framebuffer);
+
 uint pixelIndex;
 uint sampleIndex;
 
 uint nextObjectId = 0;
+
+uvec4 randState;
 
 Sphere spheres[] = Sphere[](
 	//makeSphere(vec3(0,0,40), 100, Material(BRDF_DIFFUSE, vec3(0), vec3(1,0,0), 0, DISNEY_DEF)),
@@ -133,8 +138,6 @@ AABB aabbs[] = AABB[](
 	makeAABB(vec3(3, -4, 0), vec3(3, 2, 10), Material(BRDF_REFRACT, vec3(0), vec3(1), 1.5, DISNEY_DEF)),
 	makeAABB(vec3(0, 4.9, 0), vec3(1, 0.1, 1), Material(BRDF_DISNEY, vec3(0.2,0.5,2) * 0, vec3(1), 0, DISNEY_DEF)) // Light
 );
-
-const vec3 SUN_NORMAL = normalize(vec3(0.5, -0.5, -1));
 
 Disk disks[] = Disk[](
 	//makeDisk(-SUN_NORMAL * 149600e6, 695700e3, SUN_NORMAL, Material(BRDF_DIFFUSE, vec3(1,1,1) * 100000, vec3(1), 0, DISNEY_DEF)),
@@ -165,16 +168,14 @@ Disk makeDisk(const vec3 center, const float radius, const vec3 normal, const Ma
 	return Disk(nextObjectId++, center, radius, normal, area, material);
 }
 
-uvec4 state;
-
 void initRand()
 {
-	state = 128 + pixelIndex + uvec4(randInit * 0xFFFFFFFFu);
+	randState = 128 + pixelIndex + uvec4(randInit * 0xFFFFFFFFu);
 }
 
 uint randInt()
 {
-	return nextTausLCG(state);
+	return nextTausLCG(randState);
 }
 
 uint randInt(const uint bound)
@@ -232,7 +233,6 @@ vec2 randomStratifiedOffset()
 vec2 randomStratifiedOffset()
 {
 	uvec2 gridCoord = uvec2(sampleIndex % STRATIFIED_GRID_SIZE, sampleIndex / STRATIFIED_GRID_SIZE);
-
 	return (gridCoord + vec2(rand(), rand())) / STRATIFIED_GRID_SIZE;
 }
 
@@ -302,7 +302,6 @@ void intersectAABB(const AABB aabb, const Ray r, inout float maxDist, inout Inte
  	vec3 hitNormal = vec3(0);
 	bool inside = tNear < 0;
 
-	// TODO: Optimize
 	if (tMin.x > tMin.y && tMin.x > tMin.z)
 	{
 		hitNormal = vec3(-sign(r.dir.x), 0, 0);
@@ -418,6 +417,7 @@ vec3 lightContribution(const uint objectId, const Material material, const vec3 
 	vec3 lightPosDiff = lightPos - pos;
 	float lightDistSquared = dot(lightPosDiff, lightPosDiff);
 
+	// MIS: Sampling light
 	{
 		vec3 Li = normalize(lightPosDiff);
 
@@ -439,6 +439,7 @@ vec3 lightContribution(const uint objectId, const Material material, const vec3 
 		}
 	}
 
+	// MIS: Sampling BRDF
 	{
 		vec3 Li = sampleBRDF(material, false, normal, Lo);
 		vec3 brdf = evaluateBRDF(material, Li, normal, Lo);
@@ -554,11 +555,13 @@ vec3 calculateColor(const Ray startRay)
 			break;
 		}
 
+		// Add material radiance
 		if (bounces == 0 || specularBounce)
 		{
 			color += throughput * inter.material.radiance;
 		}
 
+		// Add direct lighting
 		if (inter.material.brdfType != BRDF_SPECULAR)
 		{
 			color += throughput * directIllumination(inter.material, inter.pos, inter.normal, -ray.dir);
@@ -567,6 +570,7 @@ vec3 calculateColor(const Ray startRay)
 		if (bounces == NUM_BOUNCES)
 			break;
 
+		// Sample BRDF for bounce ray direction and throughput
 		vec3 Li = sampleBRDF(inter.material, inter.inside, inter.normal, -ray.dir);
 		vec3 sidedNormal = inter.normal * sign(dot(inter.normal, Li));
 		vec3 brdf = evaluateBRDF(inter.material, Li, sidedNormal, -ray.dir);
@@ -596,9 +600,9 @@ void main()
 	if (any(greaterThanEqual(coord, framebufferSize)))
 		return;
 	
-	vec2 framebufferSizeInv = 1 / framebufferSize;
+	vec2 framebufferSizeInv = 1.0 / framebufferSize;
 	vec2 uvBase = coord * framebufferSizeInv;
-	pixelIndex = gl_GlobalInvocationID.y * uint(framebufferSize.x) + gl_GlobalInvocationID.x;
+	pixelIndex = gl_GlobalInvocationID.y * framebufferSize.x + gl_GlobalInvocationID.x;
 	initRand();
 	//stratifiedGridIndexOffset = uint(rand() * 0xFFFFFFFFu);
 	
