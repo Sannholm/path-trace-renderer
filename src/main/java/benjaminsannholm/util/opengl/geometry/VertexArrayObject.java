@@ -9,28 +9,24 @@ public class VertexArrayObject extends GraphicsObject
     {
         create();
     }
-    
+
     @Override
     protected void create()
     {
         setHandle(GLAPI.createVertexArray());
     }
-    
+
     @Override
-    public void dispose()
+    protected void destroy()
     {
-        if (getHandle() != -1)
-        {
-            GLAPI.deleteVertexArray(getHandle());
-            setHandle(-1);
-        }
+        GLAPI.deleteVertexArray(getHandle());
     }
-    
+
     public void bind()
     {
         GLAPI.bindVertexArray(getHandle());
     }
-    
+
     public static void unbind()
     {
         GLAPI.bindVertexArray(0);

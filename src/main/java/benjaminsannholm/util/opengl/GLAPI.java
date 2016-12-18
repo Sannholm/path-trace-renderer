@@ -18,6 +18,7 @@ import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL32;
+import org.lwjgl.opengl.GL33;
 import org.lwjgl.opengl.GL41;
 import org.lwjgl.opengl.GL42;
 import org.lwjgl.opengl.GL43;
@@ -188,6 +189,36 @@ public final class GLAPI
     public static void setViewport(int x, int y, int width, int height)
     {
         GL11.glViewport(x, y, width, height);
+    }
+
+    public static int createQuery(int target)
+    {
+        final GLCapabilities caps = GL.getCapabilities();
+        if (caps.OpenGL45)
+            return GL45.glCreateQueries(target);
+        if (caps.GL_ARB_direct_state_access)
+            return ARBDirectStateAccess.glCreateQueries(target);
+        return GL15.glGenQueries();
+    }
+
+    public static void deleteQuery(int query)
+    {
+        GL15.glDeleteQueries(query);
+    }
+    
+    public static void beginQuery(int target, int query)
+    {
+        GL15.glBeginQuery(target, query);
+    }
+    
+    public static void endQuery(int target)
+    {
+        GL15.glEndQuery(target);
+    }
+    
+    public static long getQueryObjectui64(int query, int param)
+    {
+        return GL33.glGetQueryObjectui64(query, param);
     }
     
     public static int createFramebuffer()
