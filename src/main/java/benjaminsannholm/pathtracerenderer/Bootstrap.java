@@ -341,14 +341,14 @@ public class Bootstrap
             //program1.setUniform("stratifiedGridIndices", generateStratifiedGridIndices());
             program1.use();
             
-            final int WORKGROUP_SIZE = 16;
-            final int numGroupsX = MathUtils.nextPoT(FastMath.fastCeil((float)mainFrameBufferTex.getWidth() / WORKGROUP_SIZE));
-            final int numGroupsY = MathUtils.nextPoT(FastMath.fastCeil((float)mainFrameBufferTex.getHeight() / WORKGROUP_SIZE));
+            final int numGroupsX = MathUtils.nextPoT(FastMath.fastCeil((float)mainFrameBufferTex.getWidth() / program1.getWorkgroupSizeX()));
+            final int numGroupsY = MathUtils.nextPoT(FastMath.fastCeil((float)mainFrameBufferTex.getHeight() / program1.getWorkgroupSizeY()));
+            final int numGroupsZ = MathUtils.nextPoT(100 / program1.getWorkgroupSizeZ());
             
             swSetup.stop();
             
             swCompute.start();
-            program1.dispatchCompute(numGroupsX, numGroupsY, 1);
+            program1.dispatchCompute(mainFrameBufferTex.getWidth(), mainFrameBufferTex.getHeight(), 2);
             swCompute.stop();
             
             swBarrier.start();
