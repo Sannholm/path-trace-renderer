@@ -119,7 +119,7 @@ uint nextObjectId = 0;
 uvec4 randState;
 
 #ifdef PARALLEL_SAMPLES
-shared vec3 samples[gl_WorkGroupSize.x][gl_WorkGroupSize.y][gl_WorkGroupSize.z];
+shared vec3 samples[gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z];
 #endif
 
 Sphere spheres[] = Sphere[](
@@ -548,7 +548,7 @@ vec3 background(const vec3 dir)
 	return mix(vec3(0,0,0), vec3(0.2,0.4,1) * 10, pow(dot(dir, vec3(0,1,0)) * 0.5 + 0.5, 5)) * 0.1;
 }
 
-vec3 calculateColor(const Ray startRay)
+vec3 sampleScene(const Ray startRay)
 {
 	vec3 color = vec3(0);
 	vec3 throughput = vec3(1);
@@ -606,7 +606,7 @@ vec3 calculateColor(const Ray startRay)
 
 void main()
 {
-	ivec2 pixelCoord = ivec2(gl_GlobalInvocationID.xy);
+	uvec2 pixelCoord = gl_GlobalInvocationID.xy;
 	if (any(greaterThanEqual(pixelCoord, framebufferSize)))
 		return;
 
@@ -628,19 +628,19 @@ void main()
 		vec2 uv = uvBase + randomStratifiedOffset() * framebufferSizeInv;
 		vec3 dir = normalize(mix(mix(cam00.xyz, cam01.xyz, uv.y), mix(cam10.xyz, cam11.xyz, uv.y), uv.x));
 
-		color += calculateColor(makeRay(camPos, dir));
+		color += sampleScene(makeRay(camPos, dir));
 	}
 
 	if (PROGRESSIVE && numPasses > 1)
 	{
-		vec3 prev = imageLoad(framebuffer, pixelCoord).rgb;
+		vec3 prev = imageLoad(framebuffer, ivec2(pixelCoord)).rgb;
 		vec3 newAvg = mix(prev, color, 1.0 / (SAMPLES_PER_PIXEL * numPasses));
-		imageStore(framebuffer, pixelCoord, vec4(newAvg, 1));
+		imageStore(framebuffer, ivec2(pixelCoord), vec4(newAvg, 1));
 	}
 	else
 	{
 		color *= 1.0 / SAMPLES_PER_PIXEL;
-		imageStore(framebuffer, pixelCoord, vec4(color, 1));
+		imageStore(framebuffer, ivec2(pixelCoord), vec4(color, 1));
 	}
 
 #else
@@ -651,33 +651,34 @@ void main()
 
 	vec2 uv = (pixelCoord + randomStratifiedOffset()) / framebufferSize;
 	vec3 dir = normalize(mix(mix(cam00.xyz, cam01.xyz, uv.y), mix(cam10.xyz, cam11.xyz, uv.y), uv.x));
-	vec3 sampleColor = calculateColor(makeRay(camPos, dir));
+	vec3 sampleColor = sampleScene(makeRay(camPos, dir));
 
-	samples[gl_LocalInvocationID.x][gl_LocalInvocationID.y][gl_LocalInvocationID.z] = sampleColor;
+	uint localSampleIndex = (gl_LocalInvocationID.x * gl_WorkGroupSize.y + gl_LocalInvocationID.y) * gl_WorkGroupSize.z + gl_LocalInvocationID.z;
+	samples[localSampleIndex] = sampleColor;
 	memoryBarrierShared();
 	barrier();
 
-	for (uint z = gl_WorkGroupSize.z / 2; z > 0; z >>= 1)
+	for (uint stride = gl_WorkGroupSize.z / 2; stride > 0; stride >>= 1)
 	{
-		if (gl_LocalInvocationID.z < z)
-			samples[gl_LocalInvocationID.x][gl_LocalInvocationID.y][gl_LocalInvocationID.z] += samples[gl_LocalInvocationID.x][gl_LocalInvocationID.y][gl_LocalInvocationID.z + z];
+		if (gl_LocalInvocationID.z < stride)
+			samples[localSampleIndex] += samples[localSampleIndex + stride];
 		memoryBarrierShared();
 		barrier();
 	}
 
 	if (gl_LocalInvocationID.z == 0)
 	{
-		vec3 color = samples[gl_LocalInvocationID.x][gl_LocalInvocationID.y][0];
+		vec3 color = samples[localSampleIndex];
 		if (PROGRESSIVE && numPasses > 1)
 		{
-			vec3 prev = imageLoad(framebuffer, pixelCoord).rgb;
+			vec3 prev = imageLoad(framebuffer, ivec2(pixelCoord)).rgb;
 			vec3 newAvg = mix(prev, color, 1.0 / (SAMPLES_PER_PIXEL * numPasses));
-			imageStore(framebuffer, pixelCoord, vec4(newAvg, 1));
+			imageStore(framebuffer, ivec2(pixelCoord), vec4(newAvg, 1));
 		}
 		else
 		{
-			color *= 1.0 / SAMPLES_PER_PIXEL;
-			imageStore(framebuffer, pixelCoord, vec4(color, 1));
+			color /= SAMPLES_PER_PIXEL;
+			imageStore(framebuffer, ivec2(pixelCoord), vec4(color, 1));
 		}
 	}
 
