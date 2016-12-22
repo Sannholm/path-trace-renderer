@@ -1,6 +1,7 @@
 // Constants
 
 const float INFINITY = 1.0 / 0.0;
+const float EPSILON = 1e-4;
 const float PI = 3.1415926535897932384626433832795;
 
 // Util
@@ -23,10 +24,15 @@ void buildLocalFrame(out vec3 u, out vec3 v, const vec3 w)
 	v = normalize(cross(w, u));
 }
 
-mat3 vectorCoordSystem(const vec3 w)
+mat3 vectorLocalFrameMat(const vec3 w)
 {
 	vec3 u, v;
 	buildLocalFrame(u, v, w);
+	return transpose(mat3(u, v, w));
+}
+
+mat3 rotateToFrameMat(const vec3 u, const vec3 v, const vec3 w)
+{
 	return transpose(mat3(u, v, w));
 }
 
@@ -55,7 +61,7 @@ vec3 sampleHemisphereCosineWeighted(const vec2 rand, const vec3 dir)
 	float theta = 2 * PI * rand.y;
 	vec2 disk = vec2(sin(theta), cos(theta)) * sqrt(1 - rand.x);
 	vec3 v = vec3(disk.xy, sqrt(rand.x));
-	return v * vectorCoordSystem(dir);
+	return v * vectorLocalFrameMat(dir);
 }
 
 vec3 sampleSphere(const vec2 rand)
@@ -70,8 +76,7 @@ vec3 sampleDisk(const vec2 rand, const vec3 normal)
 	float theta = acos(sqrt(1 - rand.x));
 	float phi = 2 * PI * rand.y;
 	vec3 v = vec3(vec2(cos(phi), sin(phi)) * sin(theta), 0);
-
-	return v * vectorCoordSystem(normal);
+	return v * vectorLocalFrameMat(normal);
 }
 
 // Multiple Importance Sampling
@@ -106,43 +111,119 @@ struct DisneyParams
 
 const DisneyParams DISNEY_NULL = DisneyParams(vec3(0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
-vec3 sampleGTR1(const vec3 normal, const vec2 rand, const float roughness)
+vec3 sampleGTR1(const vec3 normal, const vec3 X, const vec3 Y, const float rx, const float ry, const float roughness)
 {
-	float phiH = 2 * PI * rand.x;
+	float phiH = 2 * PI * rx;
 	float a2 = sq(roughness);
 	float cosThetaH = a2 == 1
-		? sqrt(1 - rand.y)
-		: sqrt((1 - pow(a2, 1 - rand.y)) / (1 - a2));
+		? sqrt(1 - ry)
+		: sqrt((1 - pow(a2, 1 - ry)) / (1 - a2));
 
 	vec3 omega = vec3(vec2(cos(phiH), sin(phiH)) * sqrt(1 - sq(cosThetaH)), cosThetaH);
-	return normalize(omega * vectorCoordSystem(normal));
+	return normalize(omega * rotateToFrameMat(X, Y, normal));
 }
 
-vec3 sampleGTR2Aniso(const vec3 normal, const vec2 rand, const float ax, const float ay)
+vec2 sampleGTR2AnisoSlope(const float theta, const float rx, float ry)
 {
-	float g = sqrt(rand.y / (1 - rand.y));
-	float phi = 2 * PI * rand.x;
-	vec3 omega = vec3(vec2(cos(phi), sin(phi)) * vec2(ax, ay) * g, 1);
-	return normalize(omega * vectorCoordSystem(normal));
+	vec2 slope;
+
+	if (theta < EPSILON)
+	{
+		float r = sqrt(rx / (1 - rx));
+		float phi = 2 * PI * ry;
+		return vec2(cos(phi), sin(phi)) * r;
+	}
+
+	float B = tan(theta);
+	float B2 = sq(B);
+	float G1 = 2 / (1 + sqrt(1 + B2));
+
+	// sample slope_x
+	float A = 2 * rx / G1 - 1;
+	float A2 = sq(A);
+	if (abs(A2 - 1) < EPSILON)
+	{
+		float r = sqrt(rx / (1 - rx));
+		float phi = 2 * PI * ry;
+		return vec2(cos(phi), sin(phi)) * r;
+	}
+
+	float tmp = 1 / (A2 - 1);
+	float D = sqrt(max(0, B2 * sq(tmp) - (A2 - B2) * tmp));
+	float slopeX1 = B * tmp - D;
+	float slopeX2 = B * tmp + D;
+	slope.x = (A < 0 || slopeX2 > 1 / B) ? slopeX1 : slopeX2;
+
+	// sample slope_y
+	float sign = 1;
+	if (ry > 0.5)
+	{
+		ry = 2 * (ry - 0.5);
+	}
+	else
+	{
+		sign = -1;
+		ry = 2 * (0.5 - ry);
+	}
+
+	float z = (ry *(ry *(ry * 0.27385 - 0.73369) + 0.46341))
+			/ (ry *(ry *(ry * 0.093073 + 0.309420) - 1) + 0.597999);
+	slope.y = sign * z * sqrt(1 + sq(slope.x));
+	return slope;
 }
 
-vec3 DisneyBRDFSampleSpecular(const vec3 normal, const vec3 Lo, const vec2 rand, const DisneyParams p)
+vec3 sampleGTR2AnisoDirectionFromSlope(const vec3 normal, const vec3 Lo, const vec3 X, const vec3 Y, const float ax, const float ay, const float rx, const float ry)
+{
+	vec3 V = Lo;
+
+	// Transform to local frame
+	float cosThetaV = clamp(dot(normal, V), -1, 1);
+	float phiV = atan(dot(Y, V), dot(X, V));
+	V = vec3(vec2(cos(phiV), sin(phiV)) * sqrt(1 - sq(cosThetaV)), cosThetaV);
+
+	// Stretch view direction
+	V.xy *= vec2(ax, ay);
+	V = normalize(V);
+
+	float theta = 0;
+	float phi = 0;
+
+	if (V.z < (1 - EPSILON))
+	{
+		theta = acos(V.z);
+		phi = atan(V.y, V.x);
+	}
+
+	vec2 slope = sampleGTR2AnisoSlope(theta, rx, ry);
+
+	// Rotate & unstretch
+	float cosPhi = cos(phi);
+	float sinPhi = sin(phi);
+	vec3 omega;
+	omega.x = -(cosPhi * slope.x - sinPhi * slope.y) * ax;
+	omega.y = -(sinPhi * slope.x + cosPhi * slope.y) * ay;
+	omega.z = 1;
+
+	return normalize(omega * rotateToFrameMat(X, Y, normal));
+}
+
+vec3 DisneyBRDFSampleSpecular(const vec3 normal, const vec3 Lo, const vec3 X, const vec3 Y, const float rx, const float ry, const DisneyParams p)
 {
 	// Select lobe by the relative weights.
 	// Sample the microfacet normal first, then compute the reflect direction.
 	vec3 M;
 
 	float gtr2Weight = 1 / (p.clearcoat + 1);
-	if (rand.x < gtr2Weight)
+	if (rx < gtr2Weight)
 	{
 		float aspect = sqrt(1-p.anisotropic*.9);
 		float ax = max(.001, sq(p.roughness)/aspect);
 		float ay = max(.001, sq(p.roughness)*aspect);
-		M = sampleGTR2Aniso(normal, vec2(rand.x / gtr2Weight, rand.y), ax, ay);
+		M = sampleGTR2AnisoDirectionFromSlope(normal, Lo, X, Y, ax, ay, rx / gtr2Weight, ry);
 	}
 	else
 	{
-		M = sampleGTR1(normal, vec2((rand.x - gtr2Weight) / (1 - gtr2Weight), rand.y), p.roughness);
+		M = sampleGTR1(normal, X, Y, (rx - gtr2Weight) / (1 - gtr2Weight), ry, p.roughness);
 	}
 
 	if (dot(normal, M) < 0)
@@ -151,7 +232,7 @@ vec3 DisneyBRDFSampleSpecular(const vec3 normal, const vec3 Lo, const vec2 rand,
 	return reflect(-Lo, M);
 }
 
-vec3 DisneyBRDFSample(const vec3 normal, const vec3 Lo, const vec3 rand, const DisneyParams p)
+vec3 DisneyBRDFSample(const vec3 normal, const vec3 Lo, const vec3 X, const vec3 Y, const vec3 rand, const DisneyParams p)
 {
 	float diffuseWeight = (1 - p.metallic) / 2;
 	if (rand.x < diffuseWeight)
@@ -160,7 +241,7 @@ vec3 DisneyBRDFSample(const vec3 normal, const vec3 Lo, const vec3 rand, const D
 	}
 	else
 	{
-		return DisneyBRDFSampleSpecular(normal, Lo, rand.yz, p);
+		return DisneyBRDFSampleSpecular(normal, Lo, X, Y, rand.y, rand.z, p);
 	}
 }
 
@@ -276,8 +357,12 @@ float DisneyBRDFPDFSpecular(const vec3 Li, const vec3 normal, const vec3 Lo, con
 	float ay = max(.001, sq(p.roughness)*aspect);
 
 	float clearcoatWeight = p.clearcoat / (p.clearcoat + 1);
-	float D = mix(D_GTR2Aniso(m, MdotN2, X, Y, ax, ay), D_GTR1(m, MdotN2, mix(0.1f, 0.001f, p.clearcoatGloss)), clearcoatWeight);
-	return D * abs(MdotN) * 0.25f / IdotM;
+
+	float VdotN = max(1e-4, dot(Lo, normal));
+	float roughg = sq(p.roughness*.5+.5);
+	float Dw = smithG_GGX(IdotM, roughg) * D_GTR2Aniso(m, MdotN2, X, Y, ax, ay) * 2 * IdotM / VdotN;
+	float D = mix(Dw, D_GTR1(m, MdotN2, mix(0.1f, 0.001f, p.clearcoatGloss)) * abs(MdotN) / IdotM, clearcoatWeight);
+	return D * 0.25f;
 }
 
 float DisneyBRDFPDF(const vec3 Li, const vec3 normal, const vec3 Lo, const vec3 X, const vec3 Y, const DisneyParams p)
