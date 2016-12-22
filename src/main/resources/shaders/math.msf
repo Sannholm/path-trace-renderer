@@ -17,23 +17,17 @@ float sq(const vec3 x)
 
 // Vectors
 
-mat3 vectorCoordSystem(const vec3 v)
+void buildLocalFrame(out vec3 u, out vec3 v, const vec3 w)
 {
-	vec3 v2 = normalize(abs(v.x) > abs(v.y) ? vec3(-v.z, 0, v.x) : vec3(0, v.z, -v.y));
-	vec3 v3 = cross(v2, v);
-	return transpose(mat3(v2, v3, v));
+	u = normalize(abs(w.x) > abs(w.y) ? vec3(-w.z, 0, w.x) : vec3(0, w.z, -w.y));
+	v = normalize(cross(w, u));
 }
 
-vec3 normalToTangent(const vec3 normal)
+mat3 vectorCoordSystem(const vec3 w)
 {
-	vec3 c1 = cross(normal, vec3(0, 0, 1));
-	vec3 c2 = cross(normal, vec3(0, 1, 0));
-	return normalize(sq(c1) > sq(c2) ? c1 : c2);
-}
-
-vec3 tangentToBitangent(const vec3 normal, const vec3 tangent)
-{
-	return normalize(cross(normal, tangent));
+	vec3 u, v;
+	buildLocalFrame(u, v, w);
+	return transpose(mat3(u, v, w));
 }
 
 // Color

@@ -82,7 +82,7 @@ const DisneyParams DISNEY_DEF = DisneyParams
 	0, //float metallic;
 	0, //float subsurface;
 	0.5, //float specular;
-	1, //float roughness;
+	0.3, //float roughness;
 	0, //float specularTint;
 	0, //float anisotropic;
 	0, //float sheen;
@@ -109,7 +109,7 @@ uniform vec4 cam01;
 uniform vec4 cam11;
 uniform vec3 camPos;
 
-const ivec2 framebufferSize = imageSize(framebuffer);
+const uvec2 framebufferSize = imageSize(framebuffer);
 
 uint invocationIndex;
 uint sampleIndex;
@@ -180,7 +180,7 @@ Disk makeDisk(const vec3 center, const float radius, const vec3 normal, const Ma
 
 void initRand()
 {
-	randState = 128 + invocationIndex + uvec4(randInit * 0xFFFFFFFFu);
+	randState = 128 + invocationIndex * 1099087573u + uvec4(randInit * 0xFFFFFFFFu);
 }
 
 uint randInt()
@@ -391,8 +391,8 @@ vec3 evaluateBRDF(const Material material, const vec3 Li, const vec3 normal, con
 			return material.albedo; // TODO: Wrong
 		case BRDF_DISNEY:
 
-			vec3 tangent = normalToTangent(normal);
-			vec3 bitangent = tangentToBitangent(normal, tangent);
+			vec3 tangent, bitangent;
+			buildLocalFrame(tangent, bitangent, normal);
 
 			DisneyParams p = material.disneyParams;
 			p.baseColor = material.albedo;
@@ -413,8 +413,8 @@ float evaluatePDF(const Material material, const vec3 Li, const vec3 normal, con
 			return 1;
 		case BRDF_DISNEY:
 
-			vec3 tangent = normalToTangent(normal);
-			vec3 bitangent = tangentToBitangent(normal, tangent);
+			vec3 tangent, bitangent;
+			buildLocalFrame(tangent, bitangent, normal);
 
 			return DisneyBRDFPDF(Li, normal, Lo, tangent, bitangent, material.disneyParams);
 	}
@@ -597,7 +597,7 @@ void main()
 	initRand();
 	//stratifiedGridIndexOffset = uint(rand() * 0xFFFFFFFFu);
 
-	vec2 framebufferSizeInv = 1.0 / framebufferSize;
+	vec2 framebufferSizeInv = 1.0 / vec2(framebufferSize);
 	vec2 uvBase = pixelCoord * framebufferSizeInv;
 
 	vec3 color = vec3(0);
@@ -664,9 +664,9 @@ void main()
 	}
 
 #endif
- 	
- 	//imageStore(framebuffer, pixelCoord, vec4(vec3(vec2(gl_LocalInvocationID.xy) / vec2(gl_WorkGroupSize.xy), 1), 1));
-	//imageStore(framebuffer, pixelCoord, vec4(vec3(vec2(gl_GlobalInvocationID.xy) / vec2(gl_NumWorkGroups.xy * gl_WorkGroupSize.xy), 1), 1));
-	//imageStore(framebuffer, pixelCoord, vec4(vec3(rand(),rand(),rand()), 1));
-	//imageStore(framebuffer, pixelCoord, vec4(vec3(uvBase, 0), 1));
+
+ 	//imageStore(framebuffer, ivec2(pixelCoord), vec4(vec3(vec2(gl_LocalInvocationID.xy) / vec2(gl_WorkGroupSize.xy), 1), 1));
+	//imageStore(framebuffer, ivec2(pixelCoord), vec4(vec3(vec2(gl_GlobalInvocationID.xy) / vec2(gl_NumWorkGroups.xy * gl_WorkGroupSize.xy), 1), 1));
+	//imageStore(framebuffer, ivec2(pixelCoord), vec4(vec3(rand(),rand(),rand()), 1));
+	//imageStore(framebuffer, ivec2(pixelCoord), vec4(vec3(uvBase, 0), 1));
 }
