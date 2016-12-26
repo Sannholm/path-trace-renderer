@@ -323,6 +323,7 @@ public class Bootstrap
             qSetup.begin();
             
             mainFrameBufferTex.bindImage(0, Access.READ_WRITE, Format.RGBA32F);
+            textureManager.getTexture("environment/table_mountain_2_1k.hdr").bind(0);
             
             final ShaderProgram program1 = shaderManager.getProgram("compute_draw");
             program1.setUniform("framebuffer", 0);
@@ -334,6 +335,7 @@ public class Bootstrap
             program1.setUniform("cam01", cam01);
             program1.setUniform("cam11", cam11);
             program1.setUniform("camPos", cameraTransform.getPos());
+            program1.setUniform("environmentTex", 0);
             //program1.setUniform("stratifiedGridIndices", generateStratifiedGridIndices());
             program1.use();
             

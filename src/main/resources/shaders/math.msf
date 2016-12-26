@@ -54,6 +54,15 @@ vec3 linearToSRGB(const vec3 linearCol)
 	return sRGB;
 }
 
+// Texture mapping
+
+vec3 equirectangularMap(const sampler2D sampler, const vec3 dir)
+{
+	vec2 longlat = vec2(atan(dir.z, dir.x), acos(dir.y));
+	vec2 uv = longlat * vec2(1 / (2 * PI), 1 / PI);
+ 	return texture(sampler, uv).rgb;
+}
+
 // Sampling
 
 vec3 sampleHemisphereCosineWeighted(const vec2 rand, const vec3 dir)
