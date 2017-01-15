@@ -1,5 +1,7 @@
 package benjaminsannholm.util.opengl.texture;
 
+import static org.lwjgl.system.MemoryUtil.NULL;
+
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBuffer;
@@ -17,19 +19,21 @@ import java.util.Map;
 
 import javax.imageio.ImageIO;
 
-import org.apache.commons.imaging.ImageReadException;
-import org.apache.commons.imaging.Imaging;
-import org.apache.commons.imaging.ImagingConstants;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL12;
+import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
+import org.lwjgl.util.tinyexr.EXRHeader;
+import org.lwjgl.util.tinyexr.EXRImage;
+import org.lwjgl.util.tinyexr.EXRVersion;
+import org.lwjgl.util.tinyexr.TinyEXR;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.math.IntMath;
 import com.google.gson.Gson;
 import com.google.gson.annotations.SerializedName;
@@ -164,16 +168,67 @@ public class TextureManager
                 return image;
         }
         
-        try (InputStream stream = new BufferedInputStream(textureLocator.locate(path).openStream()))
+        if (FilenameUtils.getExtension(path).equalsIgnoreCase("exr"))
         {
-            return Imaging.getBufferedImage(stream, ImmutableMap.<String, Object>builder()
-                    .put(ImagingConstants.PARAM_KEY_FILENAME, path)
-                    .build());
+            final byte[] fileArray;
+            try (InputStream stream = textureLocator.locate(path).openStream())
+            {
+                fileArray = IOUtils.toByteArray(stream);
+            }
+            
+            final ByteBuffer fileBuffer = MemoryUtil.memAlloc(fileArray.length);
+            try (MemoryStack stack = MemoryStack.stackPush())
+            {
+                fileBuffer.put(fileArray);
+                fileBuffer.flip();
+                
+                final EXRVersion version = EXRVersion.mallocStack(stack);
+                int ret = TinyEXR.ParseEXRVersionFromMemory(version, fileBuffer);
+                if (ret != TinyEXR.TINYEXR_SUCCESS)
+                    throw new IOException("Could not load EXR: " + ret);
+                
+                try (EXRHeader header = EXRHeader.malloc())
+                {
+                    try
+                    {
+                        TinyEXR.InitEXRHeader(header);
+                        ret = TinyEXR.ParseEXRHeaderFromMemory(header, version, fileBuffer, stack.pointers(NULL));
+                        if (ret != TinyEXR.TINYEXR_SUCCESS)
+                            throw new IOException("Could not load EXR: " + ret);
+
+                        final EXRImage image = EXRImage.mallocStack(stack);
+                        try
+                        {
+                            TinyEXR.InitEXRImage(image);
+                            ret = TinyEXR.LoadEXRImageFromMemory(image, header, fileBuffer, stack.pointers(NULL));
+                            if (ret != TinyEXR.TINYEXR_SUCCESS)
+                                throw new IOException("Could not load EXR: " + ret);
+
+                            System.out.println(header.tiled());
+                            System.out.println(image.num_tiles());
+                            System.out.println(image.width());
+                            System.out.println(image.height());
+
+                            return new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
+                        }
+                        finally
+                        {
+                            TinyEXR.FreeEXRImage(image);
+                        }
+                    }
+                    finally
+                    {
+                        TinyEXR.FreeEXRHeader(header);
+                    }
+                }
+            }
+            finally
+            {
+                MemoryUtil.memFree(fileBuffer);
+            }
         }
-        catch (ImageReadException e)
-        {
-            throw new IOException(e);
-        }
+        
+        throw new IOException("Unknown image format");
     }
 
     private static final Gson GSON = new Gson();
