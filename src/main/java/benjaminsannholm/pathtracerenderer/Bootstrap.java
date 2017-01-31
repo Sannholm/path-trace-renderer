@@ -323,7 +323,7 @@ public class Bootstrap
             qSetup.begin();
 
             mainFrameBufferTex.bindImage(0, Access.READ_WRITE, Format.RGBA32F);
-            textureManager.getTexture("environment/studio010.exr").bind(0);
+            textureManager.getTexture("environment/table_mountain_2_1k.exr").bind(0);
 
             final ShaderProgram program1 = shaderManager.getProgram("compute_draw");
             program1.setUniform("framebuffer", 0);
