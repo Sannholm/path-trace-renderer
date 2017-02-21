@@ -26,14 +26,14 @@ public final class MathUtils
     {
         return min <= value && value <= max;
     }
-
+    
     public static boolean isPointInBounds(Vector3 point, Vector3 min, Vector3 max)
     {
         return isBetween(point.getX(), min.getX(), max.getX())
                 && isBetween(point.getY(), min.getY(), max.getY())
                 && isBetween(point.getZ(), min.getZ(), max.getZ());
     }
-
+    
     public static int nextPoT(int x)
     {
         x--;

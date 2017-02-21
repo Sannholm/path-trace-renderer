@@ -12,9 +12,9 @@ public class AABB extends BaseVolume<AABB>
     private static final Set<Vector3> SEPARATING_AXES = ImmutableSet.<Vector3>builder()
             .add(Vector3.X_AXIS).add(Vector3.Y_AXIS).add(Vector3.Z_AXIS)
             .build();
-
+    
     private final Vector3 min, max;
-
+    
     public AABB(Vector3 min, Vector3 max)
     {
         this.min = Preconditions.checkNotNull(min, "min");
@@ -30,7 +30,7 @@ public class AABB extends BaseVolume<AABB>
     {
         return max;
     }
-
+    
     @Override
     public AABB getBounds()
     {
@@ -41,7 +41,7 @@ public class AABB extends BaseVolume<AABB>
     {
         return max.subtract(min).multiply(0.5F);
     }
-
+    
     @Override
     public Set<Vector3> calcVertexPositions()
     {
@@ -60,7 +60,7 @@ public class AABB extends BaseVolume<AABB>
                 .add(Vector3.create(min.getX(), max.getY(), max.getZ()))
                 .build();
     }
-
+    
     @Override
     public Set<Vector3> getSeparatingAxes()
     {
@@ -87,10 +87,10 @@ public class AABB extends BaseVolume<AABB>
         
         final Vector3 min = xa.min(xb).add(ya.min(yb)).add(za.min(zb)).add(c3);
         final Vector3 max = xa.max(xb).add(ya.max(yb)).add(za.max(zb)).add(c3);
-
+        
         return new AABB(min, max);
     }
-
+    
     @Override
     public AABB translate(Vector3 vector)
     {
@@ -127,17 +127,17 @@ public class AABB extends BaseVolume<AABB>
     {
         return MathUtils.isPointInBounds(point, getMin(), getMax());
     }
-
+    
     @Override
     public boolean intersectsRayBool(Vector3 start, Vector3 end)
     {
         if (contains(start))
             return true;
-
+        
         final Vector3 ray = end.subtract(start);
         final Vector3 rayDir = ray.normalize();
         final Vector3 invRayDir = Vector3.create(1 / rayDir.getX(), 1 / rayDir.getY(), 1 / rayDir.getZ());
-
+        
         final float tx1 = (getMin().getX() - start.getX()) * invRayDir.getX();
         final float tx2 = (getMax().getX() - start.getX()) * invRayDir.getX();
         
@@ -158,13 +158,13 @@ public class AABB extends BaseVolume<AABB>
         
         return tmax >= Math.max(0, tmin) && tmin * tmin <= ray.lengthSquared();
     }
-
+    
     @Override
     public Optional<RayIntersection> intersectsRay(Vector3 start, Vector3 end)
     {
         if (contains(start))
             return Optional.of(new RayIntersection(0, start, Vector3.ZERO));
-
+        
         final Vector3 ray = end.subtract(start);
         final Vector3 rayDir = ray.normalize();
         final Vector3 invRayDir = Vector3.create(1 / rayDir.getX(), 1 / rayDir.getY(), 1 / rayDir.getZ());
@@ -205,10 +205,10 @@ public class AABB extends BaseVolume<AABB>
             {
                 normal = Vector3.create(0, 0, -Math.signum(ray.getZ()));
             }
-
+            
             return Optional.of(new RayIntersection(tmin / ray.length(), rayDir.multiply(tmin).add(start), normal));
         }
-
+        
         return Optional.absent();
     }
     

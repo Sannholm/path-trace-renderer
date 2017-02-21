@@ -38,7 +38,7 @@ public class Shader extends GraphicsObject
             throw new ShaderCompilationException("Type: " + type + " Log: " + log);
         }
     }
-
+    
     @Override
     protected void destroy()
     {
@@ -68,7 +68,7 @@ public class Shader extends GraphicsObject
     public static class ShaderCompilationException extends RuntimeException
     {
         private static final long serialVersionUID = -7729196031230265536L;
-
+        
         public ShaderCompilationException(String message)
         {
             super(message);

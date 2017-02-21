@@ -83,10 +83,10 @@ public class TextureManager
                 final BufferedImage rawImage = loadImage(path);
                 final int width = rawImage.getWidth();
                 final int height = rawImage.getHeight();
-
+                
                 final TextureConfig config = getTextureConfig(FilenameUtils.removeExtension(path));
                 final Texture.Builder<?, ?> builder = setupTextureBuilder(width, height, config);
-
+                
                 ByteBuffer buffer = null;
                 try
                 {
@@ -95,27 +95,27 @@ public class TextureManager
                         texture = builder.format(Format.RGB32F).build();
                         
                         final float[] data = rawImage.getRaster().getPixels(0, 0, width, height, (float[])null);
-
+                        
                         buffer = MemoryUtil.memAlloc(data.length * 4);
                         buffer.asFloatBuffer().put(data);
                         buffer.flip();
-
+                        
                         texture.upload(buffer, GL11.GL_RGB, GL11.GL_FLOAT);
                     }
                     else
                     {
                         texture = builder.format(config.sRGB ? Format.SRGB8_ALPHA8 : Format.RGBA8).build();
-
+                        
                         final BufferedImage formattedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
                         final Graphics2D g = formattedImage.createGraphics();
                         g.drawImage(rawImage, 0, 0, null);
                         
                         final int[] data = ((DataBufferInt)formattedImage.getRaster().getDataBuffer()).getData();
-
+                        
                         buffer = MemoryUtil.memAlloc(data.length * 4);
                         buffer.asIntBuffer().put(data);
                         buffer.flip();
-
+                        
                         texture.upload(buffer, GL12.GL_BGRA, GL12.GL_UNSIGNED_INT_8_8_8_8_REV);
                     }
                 }
@@ -123,7 +123,7 @@ public class TextureManager
                 {
                     MemoryUtil.memFree(buffer);
                 }
-
+                
                 if (config.mipmap)
                     texture.generateMipmaps();
             }
@@ -140,11 +140,11 @@ public class TextureManager
         }
         return texture;
     }
-
+    
     private Builder<?, ?> setupTextureBuilder(int width, int height, TextureConfig config)
     {
         Texture.Builder<?, ?> builder;
-
+        
         switch (config.type)
         {
             case "2d":
@@ -163,10 +163,10 @@ public class TextureManager
         
         builder.magFilter(config.magBlur ? MagnificationFilter.LINEAR : MagnificationFilter.NEAREST)
                 .minFilter(config.mipmap ? (config.minBlur ? MinificationFilter.LINEAR_MIPMAP : MinificationFilter.NEAREST_MIPMAP) : (config.minBlur ? MinificationFilter.LINEAR : MinificationFilter.NEAREST));
-
+        
         return builder;
     }
-
+    
     private BufferedImage loadImage(String path) throws IOException
     {
         try (InputStream stream = new BufferedInputStream(textureLocator.locate(path).openStream()))
@@ -175,7 +175,7 @@ public class TextureManager
             if (image != null)
                 return image;
         }
-
+        
         if (FilenameUtils.getExtension(path).equalsIgnoreCase("exr"))
         {
             final byte[] fileArray;
@@ -183,18 +183,18 @@ public class TextureManager
             {
                 fileArray = IOUtils.toByteArray(stream);
             }
-
+            
             final ByteBuffer fileBuffer = MemoryUtil.memAlloc(fileArray.length);
             try (MemoryStack stack = MemoryStack.stackPush())
             {
                 fileBuffer.put(fileArray);
                 fileBuffer.flip();
-
+                
                 final EXRVersion version = EXRVersion.callocStack(stack);
                 int ret = TinyEXR.ParseEXRVersionFromMemory(version, fileBuffer);
                 if (ret != TinyEXR.TINYEXR_SUCCESS)
                     throw new IOException("Could not load EXR: " + ret);
-
+                
                 try (EXRHeader header = EXRHeader.calloc())
                 {
                     try
@@ -215,10 +215,10 @@ public class TextureManager
                             ret = TinyEXR.LoadEXRImageFromMemory(image, header, fileBuffer, stack.pointers(NULL));
                             if (ret != TinyEXR.TINYEXR_SUCCESS)
                                 throw new IOException("Could not load EXR: " + ret);
-
+                            
                             final int width = image.width();
                             final int height = image.height();
-
+                            
                             final FloatBuffer[] rgbBuffers = new FloatBuffer[3];
                             for (int i = 0; i < header.num_channels(); i++)
                             {
@@ -238,7 +238,7 @@ public class TextureManager
                                 if (index != -1)
                                     rgbBuffers[index] = image.images().getFloatBuffer(i, width * height);
                             }
-
+                            
                             final DataBuffer buffer = new DataBufferFloat(width * height * 3);
                             for (int i = 0; i < width * height; i++)
                             {
@@ -246,7 +246,7 @@ public class TextureManager
                                 buffer.setElemFloat(i * 3 + 1, rgbBuffers[1].get(i));
                                 buffer.setElemFloat(i * 3 + 2, rgbBuffers[2].get(i));
                             }
-
+                            
                             final int[] bandOffsets = new int[3];
                             Arrays.setAll(bandOffsets, i -> i);
                             final BufferedImage img = new BufferedImage(new ComponentColorModel(
@@ -258,7 +258,7 @@ public class TextureManager
                                             buffer,
                                             null),
                                     false, null);
-
+                            
                             return img;
                         }
                         finally
@@ -277,7 +277,7 @@ public class TextureManager
                 MemoryUtil.memFree(fileBuffer);
             }
         }
-
+        
         throw new IOException("Unknown image format");
     }
     

@@ -8,7 +8,7 @@ public class DummyShaderProgram extends ShaderProgram
     public DummyShaderProgram()
     {
     }
-
+    
     @Override
     protected void create()
     {
@@ -18,7 +18,7 @@ public class DummyShaderProgram extends ShaderProgram
     protected void destroy()
     {
     }
-
+    
     @Override
     public void getBinary(IntBuffer length, IntBuffer binaryFormat, ByteBuffer binary)
     {
@@ -41,17 +41,17 @@ public class DummyShaderProgram extends ShaderProgram
     {
         return 1;
     }
-
+    
     @Override
     public void use()
     {
     }
-
+    
     @Override
     public <T> void setUniform(String name, T value)
     {
     }
-
+    
     @Override
     public void dispatchCompute(int numGroupsX, int numGroupsY, int numGroupsZ)
     {

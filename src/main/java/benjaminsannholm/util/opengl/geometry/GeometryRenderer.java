@@ -17,21 +17,21 @@ public final class GeometryRenderer
         
         GLOBAL_VAO.bind();
         vbo.bind();
-
+        
         final List<VertexAttribute> attributes = format.getAttributes();
         for (int i = 0; i < attributes.size(); i++)
         {
             final VertexAttribute attribute = attributes.get(i);
-
+            
             GLAPI.enableVertexAttribArray(GLOBAL_VAO.getHandle(), i);
             GLAPI.setVertexAttribPointer(GLOBAL_VAO.getHandle(), i, attribute.getCount(), attribute.getDataType().getEnum(), attribute.shouldNormalize(), format.getBytesPerVertex(), format.getOffset(i));
         }
-
+        
         GLAPI.drawArrays(mode.getEnum(), start, count);
-
+        
         for (int i = 0; i < attributes.size(); i++)
             GLAPI.disableVertexAttribArray(GLOBAL_VAO.getHandle(), i);
-
+        
         VertexArrayObject.unbind();
         VertexBufferObject.unbind();
     }

@@ -23,14 +23,14 @@ public abstract class BaseVolume<T extends Volume<T>> implements Volume<T>
     {
         return vertexPositions != null ? vertexPositions : (vertexPositions = calcVertexPositions());
     }
-
+    
     @Override
     public Volume<?> difference(Volume<?> other)
     {
         // TODO
         throw new UnsupportedOperationException();
     }
-
+    
     @Override
     public Range<Float> project(Vector3 axis)
     {

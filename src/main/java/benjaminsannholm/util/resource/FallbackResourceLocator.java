@@ -10,13 +10,13 @@ import com.google.common.collect.ImmutableList;
 public class FallbackResourceLocator implements ResourceLocator
 {
     private final List<ResourceLocator> stack;
-
+    
     public FallbackResourceLocator(ResourceLocator... stack)
     {
         Preconditions.checkArgument(stack.length >= 2, "Stack cannot contain < 2 resource locators");
         this.stack = ImmutableList.copyOf(Preconditions.checkNotNull(stack, "stack"));
     }
-
+    
     @Override
     public Resource locate(final String path)
     {
@@ -26,7 +26,7 @@ public class FallbackResourceLocator implements ResourceLocator
             public InputStream openStream() throws IOException
             {
                 InputStream stream = null;
-
+                
                 for (int i = 0; i < stack.size(); i++)
                 {
                     try
@@ -42,7 +42,7 @@ public class FallbackResourceLocator implements ResourceLocator
                             throw e;
                     }
                 }
-
+                
                 return stream;
             }
         };

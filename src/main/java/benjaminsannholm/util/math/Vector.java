@@ -50,16 +50,16 @@ public abstract class Vector<T extends Vector<T>>
     {
         return multiply(-1);
     }
-
+    
     public abstract T abs();
     
     public abstract float dot(T vector);
     
     public abstract T lerp(T end, float factor);
-
+    
     public abstract T random(T end, Random rand);
-
+    
     public abstract T min(T vector);
-
+    
     public abstract T max(T vector);
 }

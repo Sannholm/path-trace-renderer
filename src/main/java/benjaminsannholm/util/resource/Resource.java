@@ -9,19 +9,19 @@ import com.google.common.base.Preconditions;
 public abstract class Resource
 {
     private final String path;
-
+    
     public Resource(String path)
     {
         this.path = Preconditions.checkNotNull(path, "path");
     }
-
+    
     public String getPath()
     {
         return path;
     }
-
+    
     public abstract InputStream openStream() throws IOException;
-
+    
     @Override
     public String toString()
     {

@@ -12,7 +12,7 @@ public class ModelInfo
     private String id;
     @SerializedName("lods")
     private List<LODInfo> lods = new ArrayList<>();
-
+    
     public String getId()
     {
         return id;
@@ -22,7 +22,7 @@ public class ModelInfo
     {
         return lods;
     }
-
+    
     @Override
     public String toString()
     {
@@ -31,7 +31,7 @@ public class ModelInfo
                 .add("lods", lods)
                 .toString();
     }
-
+    
     public static class LODInfo
     {
         @SerializedName("level")
@@ -43,12 +43,12 @@ public class ModelInfo
         {
             return level;
         }
-
+        
         public String getMesh()
         {
             return mesh;
         }
-
+        
         @Override
         public String toString()
         {

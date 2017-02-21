@@ -18,7 +18,7 @@ public final class VolumeUtils
         {
             final Range<Float> proj1 = v1.project(axis);
             final Range<Float> proj2 = v2.project(axis);
-
+            
             if (!proj1.isConnected(proj2))
             {
                 return Optional.absent();
@@ -37,10 +37,10 @@ public final class VolumeUtils
                 }
             }
         }
-
+        
         return Optional.of(new VolumeIntersection(mtvDir, mtvDepth));
     }
-
+    
     public static Range<Float> projectOnAxis(Collection<Vector3> vertices, Vector3 axis)
     {
         final Iterator<Vector3> it = vertices.iterator();
@@ -53,7 +53,7 @@ public final class VolumeUtils
             min = Math.min(min, dot);
             max = Math.max(max, dot);
         }
-
+        
         return Range.closed(min, max);
     }
     
@@ -69,7 +69,7 @@ public final class VolumeUtils
             min = min.min(p);
             max = max.max(p);
         }
-
+        
         return new AABB(min, max);
     }
 }

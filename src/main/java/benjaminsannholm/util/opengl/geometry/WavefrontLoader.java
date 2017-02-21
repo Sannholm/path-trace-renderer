@@ -19,13 +19,13 @@ public class WavefrontLoader
         final List<Vector3> vertexPositions = new ArrayList<>();
         final List<Vector3> vertexNormals = new ArrayList<>();
         final List<Vector2> vertexUVs = new ArrayList<>();
-
+        
         final StaticMeshData mesh = new StaticMeshData();
-
+        
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8)))
         {
             StaticMeshSectionData currentSection = null;
-
+            
             String line;
             while ((line = reader.readLine()) != null)
             {
@@ -56,53 +56,53 @@ public class WavefrontLoader
         }
         
         mesh.removeEmptySections();
-
+        
         return mesh;
     }
-
+    
     private Vector3 parsePosition(String string)
     {
         final String[] split = string.split(" ");
         final float x = Float.parseFloat(split[0]);
         final float y = Float.parseFloat(split[1]);
         final float z = Float.parseFloat(split[2]);
-
+        
         return Vector3.create(x, y, z);
     }
-
+    
     private Vector3 parseNormal(String string)
     {
         final String[] split = string.split(" ");
         final float x = Float.parseFloat(split[0]);
         final float y = Float.parseFloat(split[1]);
         final float z = Float.parseFloat(split[2]);
-
+        
         return Vector3.create(x, y, z);
     }
-
+    
     private Vector2 parseUV(String string)
     {
         final String[] split = string.split(" ");
         final float x = Float.parseFloat(split[0]);
         final float y = Float.parseFloat(split[1]);
-
+        
         return Vector2.create(x, 1 - y);
     }
-
+    
     private void parseFace(StaticMeshSectionData section, List<Vector3> positions, List<Vector3> normals, List<Vector2> uvs, String string)
     {
         final String[] split = string.split(" ");
         final Vertex[] vertices = new Vertex[split.length];
-
+        
         for (int i = 0; i < split.length; i++)
         {
             final String element = split[i];
             final String[] indexSplit = element.split("/");
-
+            
             Vector3 pos;
             Vector3 normal = Vector3.ZERO;
             Vector2 uv = Vector2.ZERO;
-
+            
             pos = positions.get(Integer.parseInt(indexSplit[0]) - 1);
             if (indexSplit.length >= 2 && !indexSplit[1].isEmpty())
                 uv = uvs.get(Integer.parseInt(indexSplit[1]) - 1);
@@ -118,7 +118,7 @@ public class WavefrontLoader
             section.addVertex(vertices[0]);
             section.addVertex(vertices[1]);
             section.addVertex(vertices[3]);
-
+            
             section.addVertex(vertices[1]);
             section.addVertex(vertices[2]);
             section.addVertex(vertices[3]);

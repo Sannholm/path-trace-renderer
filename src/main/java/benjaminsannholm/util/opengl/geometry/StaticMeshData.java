@@ -38,7 +38,7 @@ public class StaticMeshData
             if (it.next().getVertices().size() < 3)
                 it.remove();
     }
-
+    
     public static class StaticMeshSectionData
     {
         private final String name;

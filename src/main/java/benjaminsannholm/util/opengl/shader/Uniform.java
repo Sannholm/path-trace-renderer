@@ -29,7 +29,7 @@ public abstract class Uniform<T>
             .put(Matrix4.class, Matrix4Uniform.class)
             .put(int[].class, IntArrayUniform.class)
             .build();
-
+    
     private final ShaderProgram parent;
     private final String name;
     
@@ -41,7 +41,7 @@ public abstract class Uniform<T>
         this.parent = Preconditions.checkNotNull(parent, "parent");
         this.name = Preconditions.checkNotNull(name, "name");
     }
-
+    
     protected ShaderProgram getParent()
     {
         return parent;

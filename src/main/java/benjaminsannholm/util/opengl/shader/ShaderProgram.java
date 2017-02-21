@@ -25,7 +25,7 @@ public class ShaderProgram extends GraphicsObject
 {
     private Set<Shader> shaders;
     private List<String> vertexInputs, fragmentOutputs;
-
+    
     private final Map<String, Uniform> uniforms = new THashMap<>();
     
     private int workgroupSizeX = -1, workgroupSizeY = -1, workgroupSizeZ = -1;
@@ -77,7 +77,7 @@ public class ShaderProgram extends GraphicsObject
             GLAPI.bindFragDataLocation(getHandle(), fragmentOutputs.get(i), i);
         vertexInputs = fragmentOutputs = null;
     }
-
+    
     @Override
     protected void destroy()
     {
@@ -95,7 +95,7 @@ public class ShaderProgram extends GraphicsObject
         {
             final IntBuffer values = stack.mallocInt(3);
             GLAPI.getProgramiv(getHandle(), GL43.GL_COMPUTE_WORK_GROUP_SIZE, values);
-
+            
             workgroupSizeX = values.get(0);
             workgroupSizeY = values.get(1);
             workgroupSizeZ = values.get(2);
@@ -166,7 +166,7 @@ public class ShaderProgram extends GraphicsObject
     public static class ShaderProgramLinkException extends RuntimeException
     {
         private static final long serialVersionUID = 92869432865905474L;
-
+        
         public ShaderProgramLinkException(String message)
         {
             super(message);

@@ -43,7 +43,7 @@ public class Texture3D extends Texture
     {
         GLAPI.bindTexture(GL12.GL_TEXTURE_3D, unit, 0);
     }
-
+    
     @Override
     protected void uploadParameters()
     {
@@ -52,13 +52,13 @@ public class Texture3D extends Texture
         GLAPI.setTextureParameteri(getHandle(), getType().getTarget(), GL11.GL_TEXTURE_WRAP_T, getWrapT().getEnum());
         GLAPI.setTextureParameteri(getHandle(), getType().getTarget(), GL12.GL_TEXTURE_WRAP_R, getWrapU().getEnum());
     }
-
+    
     @Override
     public void upload(ByteBuffer buffer, int format, int type)
     {
         upload(0, 0, 0, getWidth(), getHeight(), getDepth(), buffer, format, type);
     }
-
+    
     @Override
     public void upload(int x, int y, int z, int width, int height, int depth, ByteBuffer buffer, int format, int type)
     {
@@ -79,17 +79,17 @@ public class Texture3D extends Texture
     {
         return depth;
     }
-
+    
     public Wrap getWrapS()
     {
         return wrapS;
     }
-
+    
     public Wrap getWrapT()
     {
         return wrapT;
     }
-
+    
     public Wrap getWrapU()
     {
         return wrapU;
@@ -111,19 +111,19 @@ public class Texture3D extends Texture
             this.height = height;
             this.depth = depth;
         }
-
+        
         public Builder wrapS(Wrap wrap)
         {
             wrapS = wrap;
             return this;
         }
-
+        
         public Builder wrapT(Wrap wrap)
         {
             wrapT = wrap;
             return this;
         }
-
+        
         public Builder wrapU(Wrap wrap)
         {
             wrapU = wrap;

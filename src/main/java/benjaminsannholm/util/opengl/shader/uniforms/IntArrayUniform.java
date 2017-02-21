@@ -17,7 +17,7 @@ public class IntArrayUniform extends Uniform<int[]>
     {
         super(parent, name);
     }
-
+    
     @Override
     protected boolean equals(int[] value1, int[] value2)
     {
@@ -29,7 +29,7 @@ public class IntArrayUniform extends Uniform<int[]>
     {
         return Arrays.copyOf(value, value.length);
     }
-
+    
     @Override
     protected void upload(int[] value)
     {

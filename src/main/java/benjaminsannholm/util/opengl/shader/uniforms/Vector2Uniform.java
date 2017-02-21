@@ -11,7 +11,7 @@ public class Vector2Uniform extends Uniform<Vector2>
     {
         super(parent, name);
     }
-
+    
     @Override
     protected void upload(Vector2 value)
     {

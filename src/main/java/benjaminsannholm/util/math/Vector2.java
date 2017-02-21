@@ -11,39 +11,39 @@ public class Vector2 extends Vector<Vector2>
     public static final Vector2 ONE = create(1, 1);
     public static final Vector2 X_AXIS = create(1, 0);
     public static final Vector2 Y_AXIS = create(0, 1);
-
+    
     private final float x, y;
-
+    
     private Vector2(float x, float y)
     {
         this.x = x;
         this.y = y;
     }
-
+    
     public float getX()
     {
         return x;
     }
-
+    
     public float getY()
     {
         return y;
     }
-
+    
     @Override
     public boolean isZero()
     {
         return getX() == 0 && getY() == 0;
     }
-
+    
     @Override
     protected Vector2 getZero()
     {
         return ZERO;
     }
-
+    
     // DISTANCE / LENGTH
-
+    
     @Override
     public float distanceSquared(Vector2 to)
     {
@@ -51,97 +51,97 @@ public class Vector2 extends Vector<Vector2>
         return delta.getX() * delta.getX()
                 + delta.getY() * delta.getY();
     }
-
+    
     // SET
-
+    
     public Vector2 setX(float x)
     {
         if (x == getX())
             return this;
         return create(x, getY());
     }
-
+    
     public Vector2 setY(float y)
     {
         if (y == getY())
             return this;
         return create(getX(), y);
     }
-
+    
     // ADD
-
+    
     public Vector2 add(float x, float y)
     {
         if (x == 0 && y == 0)
             return this;
         return create(getX() + x, getY() + y);
     }
-
+    
     @Override
     public Vector2 add(Vector2 vector)
     {
         return add(vector.getX(), vector.getY());
     }
-
+    
     // SUBTRACT
-
+    
     public Vector2 subtract(float x, float y)
     {
         if (x == 0 && y == 0)
             return this;
         return create(getX() - x, getY() - y);
     }
-
+    
     @Override
     public Vector2 subtract(Vector2 vector)
     {
         return subtract(vector.getX(), vector.getY());
     }
-
+    
     // MULTIPLY
-
+    
     public Vector2 multiply(float x, float y)
     {
         if (x == 1 && y == 1)
             return this;
         return create(getX() * x, getY() * y);
     }
-
+    
     @Override
     public Vector2 multiply(Vector2 vector)
     {
         return multiply(vector.getX(), vector.getY());
     }
-
+    
     @Override
     public Vector2 multiply(float factor)
     {
         return multiply(factor, factor);
     }
-
+    
     // DIVIDE
-
+    
     public Vector2 divide(float x, float y)
     {
         if (x == 1 && y == 1)
             return this;
         return create(getX() / x, getY() / y);
     }
-
+    
     @Override
     public Vector2 divide(Vector2 vector)
     {
         return divide(vector.getX(), vector.getY());
     }
-
+    
     @Override
     public Vector2 divide(float divisor)
     {
         return divide(divisor, divisor);
     }
-
+    
     // MISC
-
+    
     public Vector2 rotate(float degrees)
     {
         if (degrees == 0 || isZero())
@@ -156,13 +156,13 @@ public class Vector2 extends Vector<Vector2>
     {
         return create(FastMath.abs(getX()), FastMath.abs(getY()));
     }
-
+    
     @Override
     public float dot(Vector2 vector)
     {
         return getX() * vector.getX() + getY() * vector.getY();
     }
-
+    
     @Override
     public Vector2 lerp(Vector2 end, float factor)
     {
@@ -174,7 +174,7 @@ public class Vector2 extends Vector<Vector2>
                 MathUtils.lerp(getX(), end.getX(), factor),
                 MathUtils.lerp(getY(), end.getY(), factor));
     }
-
+    
     @Override
     public Vector2 random(Vector2 end, Random rand)
     {
@@ -198,7 +198,7 @@ public class Vector2 extends Vector<Vector2>
                 Math.max(getX(), vector.getX()),
                 Math.max(getY(), vector.getY()));
     }
-
+    
     @Override
     public boolean equals(Object obj)
     {
@@ -211,13 +211,13 @@ public class Vector2 extends Vector<Vector2>
         return Float.floatToIntBits(getX()) == Float.floatToIntBits(other.getX())
                 && Float.floatToIntBits(getY()) == Float.floatToIntBits(other.getY());
     }
-
+    
     @Override
     public int hashCode()
     {
         return Objects.hash(getX(), getY());
     }
-
+    
     @Override
     public String toString()
     {
@@ -226,7 +226,7 @@ public class Vector2 extends Vector<Vector2>
                 .addValue(getY())
                 .toString();
     }
-
+    
     public static Vector2 create(float x, float y)
     {
         return new Vector2(x, y);

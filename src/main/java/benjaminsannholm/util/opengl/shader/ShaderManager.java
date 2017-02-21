@@ -43,7 +43,7 @@ import gnu.trove.set.hash.THashSet;
 public class ShaderManager implements ShaderLoader
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(ShaderManager.class);
-
+    
     private static final boolean OUTPUT_DEBUG = true;
     private static final Path DEBUG_FOLDER_PATH = Paths.get("shader_program_debug");
     
@@ -58,7 +58,7 @@ public class ShaderManager implements ShaderLoader
     {
         this.shaderLocator = Preconditions.checkNotNull(shaderLocator, "shaderLocator");
         versionHeader = VERSION_HEADER_PREFIX + version + (compatibility ? " compatibility" : "");
-
+        
         if (OUTPUT_DEBUG)
         {
             try
@@ -92,9 +92,9 @@ public class ShaderManager implements ShaderLoader
                 
                 if (!vertexSource.isPresent() && !fragmentSource.isPresent() && !computeSource.isPresent())
                     throw new IOException("No shader files found");
-
+                
                 outputDebugSources(name, vertexSource, fragmentSource, computeSource);
-
+                
                 final Set<Shader> shaders = new THashSet<>();
                 try
                 {
@@ -113,7 +113,7 @@ public class ShaderManager implements ShaderLoader
                     for (Shader shader : shaders)
                         shader.dispose();
                 }
-
+                
                 outputDebugBinary(program, name);
             }
             catch (ShaderCompilationException | ShaderProgramLinkException | IOException e)
@@ -173,7 +173,7 @@ public class ShaderManager implements ShaderLoader
         public List<String> vertexInputs = ImmutableList.of("in_position");
         public List<String> fragmentOutputs = ImmutableList.of("out_color");
     }
-
+    
     private void outputDebugSources(String name, Optional<String> vertexSource, Optional<String> fragmentSource, Optional<String> computeSource)
     {
         if (OUTPUT_DEBUG)

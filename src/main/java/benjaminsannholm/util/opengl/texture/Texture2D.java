@@ -39,7 +39,7 @@ public class Texture2D extends Texture
     {
         GLAPI.bindTexture(GL11.GL_TEXTURE_2D, unit, 0);
     }
-
+    
     @Override
     protected void uploadParameters()
     {
@@ -68,12 +68,12 @@ public class Texture2D extends Texture
     {
         return height;
     }
-
+    
     public Wrap getWrapS()
     {
         return wrapS;
     }
-
+    
     public Wrap getWrapT()
     {
         return wrapT;
