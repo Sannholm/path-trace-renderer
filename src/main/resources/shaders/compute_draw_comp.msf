@@ -93,6 +93,8 @@ const bool PROGRESSIVE = true;
 const int SAMPLES_PER_PIXEL = 64;
 const int NUM_BOUNCES = 5;
 
+const uint STRATIFIED_GRID_SIZE = uint(sqrt(SAMPLES_PER_PIXEL));
+
 const vec3 SUN_NORMAL = normalize(vec3(0.5, -0.5, -1));
 
 layout(rgba32f) uniform restrict image2D framebuffer;
@@ -203,57 +205,11 @@ float rand()
 	return ldexp(randInt(), -32);
 }
 
-//const bool STRATIFIED_SAMPLING = true;
-const int STRATIFIED_GRID_SIZE = int(sqrt(SAMPLES_PER_PIXEL));
-/*const int MAX_STRATIFIED_DIMENSIONS = 5;
-uniform int stratifiedGridIndices[MAX_STRATIFIED_DIMENSIONS * SAMPLES_PER_PIXEL];
-uint stratifiedGridIndexOffset;
-int stratifiedGridDimension;
-
-vec2 randomStratifiedOffset()
-{
-	if (STRATIFIED_SAMPLING && stratifiedGridDimension < MAX_STRATIFIED_DIMENSIONS)
-	{
-		uint i = (stratifiedGridIndices[stratifiedGridDimension++ * SAMPLES_PER_PIXEL + sampleIndex] + stratifiedGridIndexOffset) % SAMPLES_PER_PIXEL;
-		uvec2 gridCoord = uvec2(i % STRATIFIED_GRID_SIZE, i / STRATIFIED_GRID_SIZE);
-
-		return (gridCoord + vec2(rand(), rand())) / STRATIFIED_GRID_SIZE;
-	}
-	else
-	{
-		return vec2(rand(), rand());
-	}
-}
-
-vec2 randomStratifiedOffset()
-{
-	if (STRATIFIED_SAMPLING && stratifiedGridDimension++ < 1)
-	{
-		uvec2 gridCoord = uvec2(sampleIndex % STRATIFIED_GRID_SIZE, sampleIndex / STRATIFIED_GRID_SIZE);
-
-		return (gridCoord + vec2(rand(), rand())) / STRATIFIED_GRID_SIZE;
-	}
-	else
-	{
-		return vec2(rand(), rand());
-	}
-}*/
-
 vec2 randomStratifiedOffset()
 {
 	uvec2 gridCoord = uvec2(sampleIndex % STRATIFIED_GRID_SIZE, sampleIndex / STRATIFIED_GRID_SIZE);
 	return (gridCoord + vec2(rand(), rand())) / STRATIFIED_GRID_SIZE;
 }
-
-/*vec3 randomHemispherePointCosineWeightedStratified(vec3 dir)
-{
-	vec2 stratRand = randomStratifiedOffset();
-	float theta = acos(sqrt(1 - stratRand.x));
-	float phi = 2 * PI * stratRand.y;
-	vec3 v = vec3(vec2(cos(phi), sin(phi)) * sin(theta), cos(theta));
-
-	return v * vectorCoordSystem(dir);
-}*/
 
 bool intersectPlane(const vec3 center, const vec3 normal, const Ray r, out float t)
 {
@@ -531,7 +487,7 @@ vec3 directIllumination(const Material material, const vec3 pos, const vec3 norm
 
 vec3 background(const vec3 dir)
 {
-	//return vec3(0);
+	return vec3(0);
 	return equirectangularMap(environmentTex, dir) * 0.7;
 	return mix(vec3(0,0,0), vec3(0.2,0.4,1) * 10, pow(dot(dir, vec3(0,1,0)) * 0.5 + 0.5, 5)) * 0.1;
 }
@@ -600,10 +556,6 @@ void main()
 
 #ifndef PARALLEL_SAMPLES
 
-	uint invocationIndex = gl_GlobalInvocationID.y * framebufferSize.x + gl_GlobalInvocationID.x;
-	initRand(invocationIndex);
-	//stratifiedGridIndexOffset = uint(rand() * 0xFFFFFFFFu);
-
 	vec2 framebufferSizeInv = 1.0 / vec2(framebufferSize);
 	vec2 uvBase = pixelCoord * framebufferSizeInv;
 
@@ -611,37 +563,36 @@ void main()
 	for(int i = 0; i < SAMPLES_PER_PIXEL; i++)
 	{
 		sampleIndex = i;
-		//stratifiedGridDimension = 0;
+		uint invocationIndex = gl_GlobalInvocationID.y * framebufferSize.x * SAMPLES_PER_PIXEL + gl_GlobalInvocationID.x * SAMPLES_PER_PIXEL + sampleIndex;
+		initRand(invocationIndex);
 
 		vec2 uv = uvBase + randomStratifiedOffset() * framebufferSizeInv;
 		vec3 dir = normalize(mix(mix(cam00.xyz, cam01.xyz, uv.y), mix(cam10.xyz, cam11.xyz, uv.y), uv.x));
-
 		color += sampleScene(makeRay(camPos, dir));
 	}
 
-	if (PROGRESSIVE && numPasses > 1)
+	if (PROGRESSIVE)
 	{
-		vec3 prev = imageLoad(framebuffer, ivec2(pixelCoord)).rgb;
+		vec3 prev = numPasses > 1 ? imageLoad(framebuffer, ivec2(pixelCoord)).rgb : vec3(0);
 		vec3 newAvg = mix(prev, color, 1.0 / (SAMPLES_PER_PIXEL * numPasses));
 		imageStore(framebuffer, ivec2(pixelCoord), vec4(newAvg, 1));
 	}
 	else
 	{
-		color *= 1.0 / SAMPLES_PER_PIXEL;
-		imageStore(framebuffer, ivec2(pixelCoord), vec4(color, 1));
+		imageStore(framebuffer, ivec2(pixelCoord), vec4(color / SAMPLES_PER_PIXEL, 1));
 	}
 
 #else
 
 	sampleIndex = gl_GlobalInvocationID.z;
-	uint invocationIndex = (gl_GlobalInvocationID.z * framebufferSize.y + gl_GlobalInvocationID.y) * framebufferSize.x + gl_GlobalInvocationID.x;
+	uint invocationIndex = gl_GlobalInvocationID.y * framebufferSize.x * gl_WorkGroupSize.z + gl_GlobalInvocationID.x * gl_WorkGroupSize.z + gl_GlobalInvocationID.z;
 	initRand(invocationIndex);
 
 	vec2 uv = (pixelCoord + randomStratifiedOffset()) / framebufferSize;
 	vec3 dir = normalize(mix(mix(cam00.xyz, cam01.xyz, uv.y), mix(cam10.xyz, cam11.xyz, uv.y), uv.x));
 	vec3 sampleColor = sampleScene(makeRay(camPos, dir));
 
-	uint localSampleIndex = (gl_LocalInvocationID.x * gl_WorkGroupSize.y + gl_LocalInvocationID.y) * gl_WorkGroupSize.z + gl_LocalInvocationID.z;
+	uint localSampleIndex = gl_LocalInvocationID.y * gl_WorkGroupSize.x * gl_WorkGroupSize.z + gl_LocalInvocationID.x * gl_WorkGroupSize.z + gl_LocalInvocationID.z;
 	samples[localSampleIndex] = sampleColor;
 	memoryBarrierShared();
 	barrier();
@@ -657,16 +608,15 @@ void main()
 	if (gl_LocalInvocationID.z == 0)
 	{
 		vec3 color = samples[localSampleIndex];
-		if (PROGRESSIVE && numPasses > 1)
+		if (PROGRESSIVE)
 		{
-			vec3 prev = imageLoad(framebuffer, ivec2(pixelCoord)).rgb;
+			vec3 prev = numPasses > 1 ? imageLoad(framebuffer, ivec2(pixelCoord)).rgb : vec3(0);
 			vec3 newAvg = mix(prev, color, 1.0 / (SAMPLES_PER_PIXEL * numPasses));
 			imageStore(framebuffer, ivec2(pixelCoord), vec4(newAvg, 1));
 		}
 		else
 		{
-			color /= SAMPLES_PER_PIXEL;
-			imageStore(framebuffer, ivec2(pixelCoord), vec4(color, 1));
+			imageStore(framebuffer, ivec2(pixelCoord), vec4(color / SAMPLES_PER_PIXEL, 1));
 		}
 	}
 
