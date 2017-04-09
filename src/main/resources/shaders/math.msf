@@ -16,7 +16,7 @@ float sq(const vec3 x)
 	return dot(x, x);
 }
 
-// Vectors
+// Transforms
 
 void buildLocalFrame(out vec3 u, out vec3 v, const vec3 w)
 {
@@ -34,6 +34,18 @@ mat3 vectorLocalFrameMat(const vec3 w)
 mat3 rotateToFrameMat(const vec3 u, const vec3 v, const vec3 w)
 {
 	return transpose(mat3(u, v, w));
+}
+
+// Hashing
+
+uint wangHash(uint x)
+{
+    x = (x ^ 61) ^ (x >> 16);
+    x *= 9;
+    x = x ^ (x >> 4);
+    x *= 0x27d4eb2d;
+    x = x ^ (x >> 15);
+    return x;
 }
 
 // Color

@@ -1,0 +1,43 @@
+#include math
+#include random
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(rgba32f) uniform restrict image2D framebuffer;
+uniform int numPasses;
+
+uvec4 randState;
+
+void initRand(uint invocationIndex)
+{
+	randState = 128 + wangHash(invocationIndex) + uvec4(wangHash(numPasses), wangHash(numPasses+1), wangHash(numPasses+2), wangHash(numPasses+3));
+}
+
+uint randInt()
+{
+	return nextTausLCG(randState);
+}
+
+uint randInt(const uint bound)
+{
+	uint threshold = -bound % bound;
+	while (true)
+	{
+		uint r = randInt();
+		if (r >= threshold)
+			return r % bound;
+	}
+}
+
+float rand()
+{
+	return ldexp(randInt(), -32);
+}
+
+void main()
+{
+	uint invocationIndex = gl_GlobalInvocationID.y * framebufferSize.x + gl_GlobalInvocationID.x;
+	initRand(invocationIndex);
+
+	imageStore(framebuffer, ivec2(gl_GlobalInvocationID.xy), vec4(vec3(rand(),rand(),rand()), 1));
+}

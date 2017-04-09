@@ -7,15 +7,9 @@ in vec2 uv;
 
 out vec4 out_color;
 
-vec3 ACESFilmTonemap(vec3 x)
+vec3 reinhardTonemap(const vec3 x)
 {
-	x *= 0.6;
-	const float a = 2.51;
-	const float b = 0.03;
-	const float c = 2.43;
-	const float d = 0.59;
-	const float e = 0.14;
-	return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0, 1);
+	return x / (x + 1);
 }
 
 vec3 uncharted2Tonemap(const vec3 x)
@@ -30,9 +24,15 @@ vec3 uncharted2Tonemap(const vec3 x)
 	return ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F;
 }
 
-vec3 reinhardTonemap(const vec3 x)
+vec3 ACESFilmTonemap(vec3 x)
 {
-	return x / (x + 1);
+	x *= 0.6;
+	const float a = 2.51;
+	const float b = 0.03;
+	const float c = 2.43;
+	const float d = 0.59;
+	const float e = 0.14;
+	return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0, 1);
 }
 
 void main()

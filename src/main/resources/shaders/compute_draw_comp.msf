@@ -111,7 +111,6 @@ uniform sampler2D environmentTex;
 
 const uvec2 framebufferSize = imageSize(framebuffer);
 
-uint invocationIndex;
 uint sampleIndex;
 
 uint nextObjectId = 0;
@@ -178,9 +177,9 @@ Disk makeDisk(const vec3 center, const float radius, const vec3 normal, const Ma
 	return Disk(nextObjectId++, center, radius, normal, area, material);
 }
 
-void initRand()
+void initRand(uint invocationIndex)
 {
-	randState = 128 + invocationIndex * 1099087573u + uvec4(randInit * 0xFFFFFFFFu);
+	randState = 128 + wangHash(invocationIndex) + uvec4(wangHash(numPasses), wangHash(numPasses+1), wangHash(numPasses+2), wangHash(numPasses+3));
 }
 
 uint randInt()
@@ -601,8 +600,8 @@ void main()
 
 #ifndef PARALLEL_SAMPLES
 
-	invocationIndex = gl_GlobalInvocationID.y * framebufferSize.x + gl_GlobalInvocationID.x;
-	initRand();
+	uint invocationIndex = gl_GlobalInvocationID.y * framebufferSize.x + gl_GlobalInvocationID.x;
+	initRand(invocationIndex);
 	//stratifiedGridIndexOffset = uint(rand() * 0xFFFFFFFFu);
 
 	vec2 framebufferSizeInv = 1.0 / vec2(framebufferSize);
@@ -634,9 +633,9 @@ void main()
 
 #else
 
-	invocationIndex = (gl_GlobalInvocationID.z * framebufferSize.y + gl_GlobalInvocationID.y) * framebufferSize.x + gl_GlobalInvocationID.x;
 	sampleIndex = gl_GlobalInvocationID.z;
-	initRand();
+	uint invocationIndex = (gl_GlobalInvocationID.z * framebufferSize.y + gl_GlobalInvocationID.y) * framebufferSize.x + gl_GlobalInvocationID.x;
+	initRand(invocationIndex);
 
 	vec2 uv = (pixelCoord + randomStratifiedOffset()) / framebufferSize;
 	vec3 dir = normalize(mix(mix(cam00.xyz, cam01.xyz, uv.y), mix(cam10.xyz, cam11.xyz, uv.y), uv.x));
@@ -676,5 +675,4 @@ void main()
  	//imageStore(framebuffer, ivec2(pixelCoord), vec4(vec3(vec2(gl_LocalInvocationID.xy) / vec2(gl_WorkGroupSize.xy), 1), 1));
 	//imageStore(framebuffer, ivec2(pixelCoord), vec4(vec3(vec2(gl_GlobalInvocationID.xy) / vec2(gl_NumWorkGroups.xy * gl_WorkGroupSize.xy), 1), 1));
 	//imageStore(framebuffer, ivec2(pixelCoord), vec4(vec3(rand(),rand(),rand()), 1));
-	//imageStore(framebuffer, ivec2(pixelCoord), vec4(vec3(uvBase, 0), 1));
 }
