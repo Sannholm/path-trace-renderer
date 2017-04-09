@@ -128,9 +128,9 @@ Sphere spheres[] = Sphere[](
 
 	makeSphere(vec3(0,-3,3), 2, Material(BRDF_DISNEY, vec3(0), vec3(1), 0, DISNEY_DEF)),
 	makeSphere(vec3(-3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1), 0, DISNEY_DEF)),
-	makeSphere(vec3(3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1), 0, DISNEY_DEF))
+	makeSphere(vec3(3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1), 0, DISNEY_DEF)),
 	
-	//makeSphere(vec3(0,0,0), 2, Material(BRDF_DIFFUSE, vec3(0), vec3(0.18), 0, DISNEY_DEF))
+	makeSphere(vec3(20,-5,-7), 7, Material(BRDF_DIFFUSE, vec3(0), vec3(1,0.5,0), 0, DISNEY_DEF))
 );
 
 AABB aabbs[] = AABB[](
@@ -153,7 +153,8 @@ AABB aabbs[] = AABB[](
 Disk disks[] = Disk[](
 	//makeDisk(-SUN_NORMAL * 149600e6, 695700e3, SUN_NORMAL, Material(BRDF_DIFFUSE, vec3(1,1,1) * 10000, vec3(1), 0, DISNEY_DEF)),
 	makeDisk(vec3(10,-5,-10), 1, normalize(vec3(1,0,1)), Material(BRDF_DIFFUSE, vec3(10), vec3(1), 0, DISNEY_DEF)),
-	makeDisk(vec3(0,2,0), 1, normalize(vec3(0,-1,1)), Material(BRDF_DIFFUSE, vec3(10), vec3(1), 0, DISNEY_DEF))
+	makeDisk(vec3(0,2,0), 1, normalize(vec3(0,-1,1)), Material(BRDF_DIFFUSE, vec3(10), vec3(1), 0, DISNEY_DEF)),
+	makeDisk(vec3(20,5,0), 1, normalize(vec3(-1,-0.8,-0.7)), Material(BRDF_DIFFUSE, vec3(30), vec3(1), 0, DISNEY_DEF))
 );
 
 Ray makeRay(const vec3 origin, const vec3 dir)
@@ -294,7 +295,8 @@ void intersectDisk(const Disk d, const Ray r, inout float maxDist, inout Interse
 	if (sq(hitPos - d.center) > d.radius * d.radius)
 		return;
 
-	inter = Intersection(d.objectId, hitPos, d.normal, false, d.material);
+	vec3 hitNormal = d.normal * -sign(dot(r.dir, d.normal));
+	inter = Intersection(d.objectId, hitPos, hitNormal, false, d.material);
 	maxDist = t;
 }
 
@@ -532,19 +534,19 @@ vec3 sampleScene(const Ray startRay)
 		if (brdf == vec3(0) || pdf == 0)
 			break;
 
-		float NdotL = dot(sidedNormal, Li);
-		throughput *= brdf * (abs(NdotL) / pdf);
+		float NdotL = abs(dot(Li, inter.normal));
+		throughput *= brdf * (NdotL / pdf);
 
 		// Russian Roulette
 		float rrProb = max(throughput.r, max(throughput.g, throughput.b));
-		if (rrProb <= rand())
+		if (rrProb < rand())
 			break;
-		throughput *= 1 / rrProb; // Re-add lost energy for terminated paths
+		throughput /= rrProb; // Re-add lost energy for terminated paths
 
 		ray = makeRay(inter.pos + sidedNormal * EPSILON, Li);
 		specularBounce = inter.material.brdfType == BRDF_SPECULAR;
 	}
-	
+
 	return color;
 }
 

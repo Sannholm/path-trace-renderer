@@ -240,11 +240,11 @@ vec3 DisneyBRDFSampleSpecular(const vec3 normal, const vec3 Lo, const vec3 X, co
 		float aspect = sqrt(1-p.anisotropic*.9);
 		float ax = max(.001, sq(p.roughness)/aspect);
 		float ay = max(.001, sq(p.roughness)*aspect);
-		M = sampleGTR2AnisoDirectionFromSlope(normal, Lo, X, Y, ax, ay, rx / gtr2Weight, ry);
+		M = sampleGTR2AnisoDirectionFromSlope(normal, Lo, X, Y, ax, ay, rx, ry);
 	}
 	else
 	{
-		M = sampleGTR1(normal, X, Y, (rx - gtr2Weight) / (1 - gtr2Weight), ry, p.roughness);
+		M = sampleGTR1(normal, X, Y, rx, ry, p.roughness);
 	}
 
 	if (dot(normal, M) < 0)
@@ -297,7 +297,7 @@ vec3 DisneyBRDF(const vec3 L, const vec3 N, const vec3 V, const vec3 X, const ve
 {
 	float NdotL = dot(N,L);
 	float NdotV = dot(N,V);
-	if (NdotL < 0 || NdotV < 0) return vec3(0);
+	if (NdotL <= 0 || NdotV <= 0) return vec3(0);
 
 	vec3 H = normalize(L+V);
 	float NdotH = dot(N,H);
@@ -368,7 +368,7 @@ float DisneyBRDFPDFSpecular(const vec3 Li, const vec3 normal, const vec3 Lo, con
 	float IdotM = abs(dot(Li, m));
 	float MdotN = dot(m, normal);
 
-	if (MdotN < 0)
+	if (MdotN <= 0)
 		return 0;
 
 	float MdotN2 = sq(MdotN);
