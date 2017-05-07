@@ -37,7 +37,7 @@ dependencies {
 	compile 'benjaminsannholm:bs-util:1.0.0'
 
     compile 'org.slf4j:slf4j-api:1.7.25'
-    compile 'org.slf4j:slf4j-simple:1.7.25'
+    runtime 'org.slf4j:slf4j-simple:1.7.25'
     compile 'commons-io:commons-io:2.5'
     compile 'org.apache.commons:commons-lang3:3.5'
     compile 'com.google.code.gson:gson:2.8.0'
@@ -47,10 +47,9 @@ dependencies {
 	// LWJGL
 	compile "org.lwjgl:lwjgl:${lwjglVersion}"
 	compile "org.lwjgl:lwjgl-glfw:${lwjglVersion}"
-	compile "org.lwjgl:lwjgl-jemalloc:${lwjglVersion}"
+	runtime "org.lwjgl:lwjgl-jemalloc:${lwjglVersion}"
 	compile "org.lwjgl:lwjgl-opengl:${lwjglVersion}"
 	compile "org.lwjgl:lwjgl-opencl:${lwjglVersion}"
-	compile "org.lwjgl:lwjgl-tinyexr:${lwjglVersion}"
 	// LWJGL natives
 	runtime "org.lwjgl:lwjgl:${lwjglVersion}:${lwjglNatives}"
 	runtime "org.lwjgl:lwjgl-glfw:${lwjglVersion}:${lwjglNatives}"
