@@ -25,3 +25,23 @@ uint nextTausLCG(inout uvec4 state)
 
     return state.x ^ state.y ^ state.z ^ state.w;
 }
+
+// Sobol
+
+const int NUM_SOBOL_DIMENSIONS = 1024;
+const int SOBOL_MATRIX_SIZE = 52;
+layout(std430, binding = 0) buffer SOBOL_CONSTANTS
+{
+	uint SOBOL_MATRICES[NUM_SOBOL_DIMENSIONS * SOBOL_MATRIX_SIZE];
+};
+
+uint sobol(uint dimension, uint i)
+{
+    uint result = 0;
+
+    for(uint j = dimension * SOBOL_MATRIX_SIZE; i != 0; i >>= 1, j++)
+        if((i & 1) != 0)
+            result ^= SOBOL_MATRICES[j];
+
+    return result;
+}

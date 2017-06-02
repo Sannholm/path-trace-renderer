@@ -1,0 +1,15 @@
+#include random
+
+layout(local_size_x = 1, local_size_y = 1) in;
+
+layout(rgba32f) uniform restrict image2D framebuffer;
+
+void main()
+{
+	uint invocationIndex = gl_GlobalInvocationID.y * imageSize(framebuffer).x + gl_GlobalInvocationID.x;
+	if (invocationIndex < 10000)
+	{
+		vec2 test = vec2(sobol(0, invocationIndex), sobol(1, invocationIndex));
+		imageStore(framebuffer, ivec2(test * imageSize(framebuffer)), vec4(1));
+	}
+}

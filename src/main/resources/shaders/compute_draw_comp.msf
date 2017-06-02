@@ -4,19 +4,19 @@
 #define PARALLEL_SAMPLES
 
 #ifndef PARALLEL_SAMPLES
-layout(local_size_x = 16, local_size_y = 16) in;
+layout(local_size_x = 32, local_size_y = 32) in;
 #else
 layout(local_size_x = 4, local_size_y = 4, local_size_z = 64) in;
 #endif
 
-const uint BRDF_DIFFUSE = 0;
-const uint BRDF_SPECULAR = 1;
-const uint BRDF_REFRACT = 2;
-const uint BRDF_DISNEY = 3;
+const uint BSDF_DIFFUSE = 0;
+const uint BSDF_SPECULAR = 1;
+const uint BSDF_REFRACT = 2;
+const uint BSDF_DISNEY = 3;
 
 struct Material
 {
-	uint brdfType;
+	uint bsdfType;
 	vec3 radiance;
 	vec3 albedo;
 	float indexOfRefraction;
@@ -90,10 +90,13 @@ const DisneyParams DISNEY_DEF = DisneyParams
 );
 
 const bool PROGRESSIVE = true;
-const int SAMPLES_PER_PIXEL = 64;
 const int NUM_BOUNCES = 5;
 
-const uint STRATIFIED_GRID_SIZE = uint(sqrt(SAMPLES_PER_PIXEL));
+#ifndef PARALLEL_SAMPLES
+const int SAMPLES_PER_PIXEL = 64;
+#else
+const int SAMPLES_PER_PIXEL = int(gl_WorkGroupSize.z);
+#endif
 
 const vec3 SUN_NORMAL = normalize(vec3(0.5, -0.5, -1));
 
@@ -112,48 +115,52 @@ uniform sampler2D environmentTex;
 
 const uvec2 framebufferSize = imageSize(framebuffer);
 
+uint pixelIndex;
 uint sampleIndex;
 
 uint nextObjectId = 0;
 
 uvec4 randState;
+uint quasiRandIndex;
+uint quasiRandDimension = 0;
 
 #ifdef PARALLEL_SAMPLES
 shared vec3 samples[gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z];
 #endif
 
 Sphere spheres[] = Sphere[](
-	//makeSphere(vec3(0,0,40), 100, Material(BRDF_DIFFUSE, vec3(0), vec3(1,0,0), 0, DISNEY_DEF)),
+	//makeSphere(vec3(0,0,40), 100, Material(BSDF_DIFFUSE, vec3(0), vec3(1,0,0), 0, DISNEY_DEF)),
 
-	makeSphere(vec3(0,-3,3), 2, Material(BRDF_DISNEY, vec3(0), vec3(1), 0, DISNEY_DEF)),
-	makeSphere(vec3(-3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1), 0, DISNEY_DEF)),
-	makeSphere(vec3(3,3,0), 2, Material(BRDF_SPECULAR, vec3(0), vec3(1), 0, DISNEY_DEF)),
+	makeSphere(vec3(0,-3,3), 2, Material(BSDF_DISNEY, vec3(0), vec3(1), 0, DISNEY_DEF)),
+	makeSphere(vec3(-3,3,0), 2, Material(BSDF_SPECULAR, vec3(0), vec3(1), 0, DISNEY_DEF)),
+	makeSphere(vec3(3,3,0), 2, Material(BSDF_SPECULAR, vec3(0), vec3(1), 0, DISNEY_DEF)),
 
-	makeSphere(vec3(20,-5,-7), 7, Material(BRDF_DIFFUSE, vec3(0), vec3(1,0.5,0), 0, DISNEY_DEF))
+	makeSphere(vec3(20,-5,-7), 7, Material(BSDF_DIFFUSE, vec3(0), vec3(1,0.5,0), 0, DISNEY_DEF))
 );
 
 AABB aabbs[] = AABB[](
 	// World floor
-	makeAABB(vec3(0, -6, 0), vec3(100, 0.1, 100), Material(BRDF_DISNEY, vec3(0), vec3(1), 0, DISNEY_DEF)),
+	makeAABB(vec3(0, -6, 0), vec3(100, 0.1, 100), Material(BSDF_DISNEY, vec3(0), vec3(1), 0, DISNEY_DEF)),
 
-	//makeAABB(vec3(0, 0, 40), vec3(100, 100, 200), Material(BRDF_DIFFUSE, vec3(0), vec3(1), 0, DISNEY_DEF))
+	//makeAABB(vec3(0, 0, 40), vec3(100, 100, 200), Material(BSDF_DIFFUSE, vec3(0), vec3(1), 0, DISNEY_DEF))
 
 	// Cornell box
-	makeAABB(vec3(0, -5, 0), vec3(10, 0.1, 10), Material(BRDF_DISNEY, vec3(0), vec3(1), 0, DISNEY_DEF)), // Floor
-	makeAABB(vec3(0, 0, -5), vec3(10, 10, 0.1), Material(BRDF_DISNEY, vec3(0), vec3(0,0,1), 0, DISNEY_DEF)), // Back
-	makeAABB(vec3(-5, 0, 0), vec3(0.1, 10, 10), Material(BRDF_DISNEY, vec3(0), vec3(1,0,0), 0, DISNEY_DEF)), // Left
-	makeAABB(vec3(5, 0, 0), vec3(0.1, 10, 10), Material(BRDF_DISNEY, vec3(0), vec3(0,1,0), 0, DISNEY_DEF)), // Right
-	makeAABB(vec3(0, 5, 0), vec3(10, 0.1, 10), Material(BRDF_DISNEY, vec3(0), vec3(1), 0, DISNEY_DEF)), // Top
+	makeAABB(vec3(0, -5, 0), vec3(10, 0.1, 10), Material(BSDF_DISNEY, vec3(0), vec3(1), 0, DISNEY_DEF)), // Floor
+	makeAABB(vec3(0, 0, -5), vec3(10, 10, 0.1), Material(BSDF_DISNEY, vec3(0), vec3(0,0,1), 0, DISNEY_DEF)), // Back
+	makeAABB(vec3(-5, 0, 0), vec3(0.1, 10, 10), Material(BSDF_DISNEY, vec3(0), vec3(1,0,0), 0, DISNEY_DEF)), // Left
+	makeAABB(vec3(5, 0, 0), vec3(0.1, 10, 10), Material(BSDF_DISNEY, vec3(0), vec3(0,1,0), 0, DISNEY_DEF)), // Right
+	makeAABB(vec3(0, 5, 0), vec3(10, 0.1, 10), Material(BSDF_DISNEY, vec3(0), vec3(1), 0, DISNEY_DEF)), // Top
 	
-	makeAABB(vec3(3, -4, 0), vec3(3, 2, 10), Material(BRDF_REFRACT, vec3(0), vec3(1), 1.5, DISNEY_DEF)),
-	makeAABB(vec3(0, 4.9, 0), vec3(1, 0.1, 1), Material(BRDF_DISNEY, vec3(0.2,0.5,2) * 0, vec3(1), 0, DISNEY_DEF)) // Light
+	makeAABB(vec3(3, -4, 0), vec3(3, 2, 10), Material(BSDF_REFRACT, vec3(0), vec3(1), 1.5, DISNEY_DEF)),
+	makeAABB(vec3(0, 4.9, 0), vec3(1, 0.1, 1), Material(BSDF_DISNEY, vec3(0.2,0.5,2) * 0, vec3(1), 0, DISNEY_DEF)) // Light
 );
 
 Disk disks[] = Disk[](
-	//makeDisk(-SUN_NORMAL * 149600e6, 695700e3, SUN_NORMAL, Material(BRDF_DIFFUSE, vec3(1,1,1) * 10000, vec3(1), 0, DISNEY_DEF)),
-	makeDisk(vec3(10,-5,-10), 1, normalize(vec3(1,0,1)), Material(BRDF_DIFFUSE, vec3(10), vec3(1), 0, DISNEY_DEF)),
-	makeDisk(vec3(0,2,0), 1, normalize(vec3(0,-1,1)), Material(BRDF_DIFFUSE, vec3(10), vec3(1), 0, DISNEY_DEF)),
-	makeDisk(vec3(20,5,0), 1, normalize(vec3(-1,-0.8,-0.7)), Material(BRDF_DIFFUSE, vec3(30), vec3(1), 0, DISNEY_DEF))
+	//makeDisk(-SUN_NORMAL * 149600e6, 695700e3, SUN_NORMAL, Material(BSDF_DIFFUSE, vec3(1,1,1) * 10000, vec3(1), 0, DISNEY_DEF)),
+	makeDisk(vec3(10,-5,-10), 1, normalize(vec3(1,0,1)), Material(BSDF_DIFFUSE, vec3(10), vec3(1), 0, DISNEY_DEF)),
+	makeDisk(vec3(0,2,0), 1, normalize(vec3(0,-1,1)), Material(BSDF_DIFFUSE, vec3(10), vec3(1), 0, DISNEY_DEF)),
+	makeDisk(vec3(20,5,0), 1, normalize(vec3(-1,-0.8,-0.7)), Material(BSDF_DIFFUSE, vec3(30), vec3(1), 0, DISNEY_DEF)),
+	makeDisk(vec3(0,10,0), 10, normalize(vec3(0,-1,0)), Material(BSDF_DIFFUSE, vec3(1), vec3(1), 0, DISNEY_DEF))
 );
 
 Ray makeRay(const vec3 origin, const vec3 dir)
@@ -179,9 +186,11 @@ Disk makeDisk(const vec3 center, const float radius, const vec3 normal, const Ma
 	return Disk(nextObjectId++, center, radius, normal, area, material);
 }
 
-void initRand(uint invocationIndex)
+void initRand()
 {
+	uint invocationIndex = pixelIndex * SAMPLES_PER_PIXEL + sampleIndex;
 	randState = 128 + wangHash(invocationIndex) + uvec4(wangHash(numPasses), wangHash(numPasses+1), wangHash(numPasses+2), wangHash(numPasses+3));
+	quasiRandIndex = wangHash(pixelIndex) + SAMPLES_PER_PIXEL * (numPasses - 1) + sampleIndex;
 }
 
 uint randInt()
@@ -205,10 +214,9 @@ float rand()
 	return ldexp(randInt(), -32);
 }
 
-vec2 randomStratifiedOffset()
+float quasiRand()
 {
-	uvec2 gridCoord = uvec2(sampleIndex % STRATIFIED_GRID_SIZE, sampleIndex / STRATIFIED_GRID_SIZE);
-	return (gridCoord + vec2(rand(), rand())) / STRATIFIED_GRID_SIZE;
+	return ldexp(sobol(quasiRandDimension++, quasiRandIndex), -32);
 }
 
 bool intersectPlane(const vec3 center, const vec3 normal, const Ray r, out float t)
@@ -317,39 +325,39 @@ Intersection intersectScene(const Ray ray)
 	return intersectScene(ray, INFINITY);
 }
 
-vec3 sampleBRDF(const Material material, const bool exiting, const vec3 normal, const vec3 Lo)
+vec3 sampleBSDF(const Material material, const bool exiting, const vec3 normal, const vec3 Lo)
 {
-	switch(material.brdfType)
+	switch(material.bsdfType)
 	{
 		default:
-		case BRDF_DIFFUSE:
-			return sampleHemisphereCosineWeighted(vec2(rand(),rand()), normal);
-		case BRDF_SPECULAR:
+		case BSDF_DIFFUSE:
+			return sampleHemisphereCosineWeighted(vec2(quasiRand(), quasiRand()), normal);
+		case BSDF_SPECULAR:
 			return reflect(-Lo, normal);
-		case BRDF_REFRACT:
+		case BSDF_REFRACT:
 			float ior = exiting ? material.indexOfRefraction : 1 / material.indexOfRefraction;
 			return refract(-Lo, normal, ior);
-		case BRDF_DISNEY:
+		case BSDF_DISNEY:
 
 			vec3 tangent, bitangent;
 			buildLocalFrame(tangent, bitangent, normal);
 
-			return DisneyBRDFSample(normal, Lo, tangent, bitangent, vec3(rand(),rand(),rand()), material.disneyParams);
+			return DisneyBRDFSample(normal, Lo, tangent, bitangent, vec3(quasiRand(), quasiRand(), quasiRand()), material.disneyParams);
 	}
 }
 
-vec3 evaluateBRDF(const Material material, const vec3 Li, const vec3 normal, const vec3 Lo)
+vec3 evaluateBSDF(const Material material, const vec3 Li, const vec3 normal, const vec3 Lo)
 {
-	switch(material.brdfType)
+	switch(material.bsdfType)
 	{
 		default:
-		case BRDF_DIFFUSE:
+		case BSDF_DIFFUSE:
 			return material.albedo / PI;
-		case BRDF_SPECULAR:
+		case BSDF_SPECULAR:
 			return material.albedo / dot(normal, Li); // TODO: Should be specular instead of albedo
-		case BRDF_REFRACT:
+		case BSDF_REFRACT:
 			return material.albedo; // TODO: Wrong
-		case BRDF_DISNEY:
+		case BSDF_DISNEY:
 
 			vec3 tangent, bitangent;
 			buildLocalFrame(tangent, bitangent, normal);
@@ -362,16 +370,16 @@ vec3 evaluateBRDF(const Material material, const vec3 Li, const vec3 normal, con
 
 float evaluatePDF(const Material material, const vec3 Li, const vec3 normal, const vec3 Lo)
 {
-	switch(material.brdfType)
+	switch(material.bsdfType)
 	{
 		default:
-		case BRDF_DIFFUSE:
+		case BSDF_DIFFUSE:
 			return dot(normal, Li) / PI;
-		case BRDF_SPECULAR:
+		case BSDF_SPECULAR:
 			return 1;
-		case BRDF_REFRACT:
+		case BSDF_REFRACT:
 			return 1;
-		case BRDF_DISNEY:
+		case BSDF_DISNEY:
 
 			vec3 tangent, bitangent;
 			buildLocalFrame(tangent, bitangent, normal);
@@ -391,30 +399,30 @@ vec3 lightContribution(const uint objectId, const Material material, const vec3 
 		Intersection lightInter = intersectScene(makeRay(pos + normal * EPSILON, Li), INFINITY);
 		if (lightInter.objectId == objectId)
 		{
-			vec3 brdf = evaluateBRDF(material, Li, normal, Lo);
+			vec3 bsdf = evaluateBSDF(material, Li, normal, Lo);
 
 			float lightPdf = lightDistSquared / (abs(dot(lightInter.normal, -Li)) * lightArea);
-			float brdfPdf = evaluatePDF(material, Li, normal, Lo);
-			float weight = powerHeuristic(1, lightPdf, 1, brdfPdf);
+			float bsdfPdf = evaluatePDF(material, Li, normal, Lo);
+			float weight = powerHeuristic(1, lightPdf, 1, bsdfPdf);
 
-			light += brdf * max(0, dot(normal, Li)) * lightRadiance * weight / lightPdf;
+			light += bsdf * max(0, dot(normal, Li)) * lightRadiance * weight / lightPdf;
 		}
 	}
 
-	// MIS: Sampling BRDF
+	// MIS: Sampling BSDF
 	{
-		vec3 Li = sampleBRDF(material, false, normal, Lo);
+		vec3 Li = sampleBSDF(material, false, normal, Lo);
 
 		Intersection lightInter = intersectScene(makeRay(pos + normal * EPSILON, Li), INFINITY);
 		if (lightInter.objectId == objectId)
 		{
-			vec3 brdf = evaluateBRDF(material, Li, normal, Lo);
+			vec3 bsdf = evaluateBSDF(material, Li, normal, Lo);
 
 			float lightPdf = lightDistSquared / (abs(dot(lightInter.normal, -Li)) * lightArea);
-			float brdfPdf = evaluatePDF(material, Li, normal, Lo);
-			float weight = powerHeuristic(1, brdfPdf, 1, lightPdf);
+			float bsdfPdf = evaluatePDF(material, Li, normal, Lo);
+			float weight = powerHeuristic(1, bsdfPdf, 1, lightPdf);
 
-			light += brdf * max(0, dot(normal, Li)) * lightRadiance * weight / brdfPdf;
+			light += bsdf * max(0, dot(normal, Li)) * lightRadiance * weight / bsdfPdf;
 		}
 	}
 
@@ -430,7 +438,7 @@ vec3 directIllumination(const Material material, const vec3 pos, const vec3 norm
 		Sphere sphere = spheres[i];
 		if (any(greaterThan(sphere.material.radiance, vec3(0))))
 		{
-			vec3 lightPos = sphere.center + sampleSphere(vec2(rand(), rand())) * sphere.radius;
+			vec3 lightPos = sphere.center + sampleSphere(vec2(quasiRand(), quasiRand())) * sphere.radius;
 			float lightDistSquared = sq(lightPos - pos);
 			vec3 sampleDir = normalize(lightPos - pos);
 			light += lightContribution(sphere.objectId, material, sphere.material.radiance, pos, sphere.area, lightDistSquared, sampleDir, normal, Lo);
@@ -447,22 +455,22 @@ vec3 directIllumination(const Material material, const vec3 pos, const vec3 norm
 			switch (side)
 			{
 				case 0: // Bottom
-					lightPos = vec3(mix(aabb.min.xz, aabb.max.xz, rand()), aabb.min.y).xzy;
+					lightPos = vec3(mix(aabb.min.xz, aabb.max.xz, vec2(quasiRand(), quasiRand())), aabb.min.y).xzy;
 					break;
 				case 1: // Top
-					lightPos = vec3(mix(aabb.min.xz, aabb.max.xz, rand()), aabb.max.y).xzy;
+					lightPos = vec3(mix(aabb.min.xz, aabb.max.xz, vec2(quasiRand(), quasiRand())), aabb.max.y).xzy;
 					break;
 				case 2: // Left
-					lightPos = vec3(mix(aabb.min.yz, aabb.max.yz, rand()), aabb.min.x).zxy;
+					lightPos = vec3(mix(aabb.min.yz, aabb.max.yz, vec2(quasiRand(), quasiRand())), aabb.min.x).zxy;
 					break;
 				case 3: // Right
-					lightPos = vec3(mix(aabb.min.yz, aabb.max.yz, rand()), aabb.max.x).zxy;
+					lightPos = vec3(mix(aabb.min.yz, aabb.max.yz, vec2(quasiRand(), quasiRand())), aabb.max.x).zxy;
 					break;
 				case 4: // Back
-					lightPos = vec3(mix(aabb.min.xy, aabb.max.xy, rand()), aabb.min.z).xyz;
+					lightPos = vec3(mix(aabb.min.xy, aabb.max.xy, vec2(quasiRand(), quasiRand())), aabb.min.z).xyz;
 					break;
 				case 5: // Front
-					lightPos = vec3(mix(aabb.min.xy, aabb.max.xy, rand()), aabb.max.z).xyz;
+					lightPos = vec3(mix(aabb.min.xy, aabb.max.xy, vec2(quasiRand(), quasiRand())), aabb.max.z).xyz;
 					break;
 			}
 
@@ -476,7 +484,7 @@ vec3 directIllumination(const Material material, const vec3 pos, const vec3 norm
 		Disk disk = disks[i];
 		if (any(greaterThan(disk.material.radiance, vec3(0))))
 		{
-			vec3 lightPos = disk.center + sampleDisk(vec2(rand(), rand()), disk.normal) * disk.radius;
+			vec3 lightPos = disk.center + sampleDisk(vec2(quasiRand(), quasiRand()), disk.normal) * disk.radius;
 			float lightDistSquared = sq(lightPos - pos);
 			vec3 sampleDir = normalize(lightPos - pos);
 			light += lightContribution(disk.objectId, material, disk.material.radiance, pos, disk.area, lightDistSquared, sampleDir, normal, Lo);
@@ -517,7 +525,7 @@ vec3 sampleScene(const Ray startRay)
 		}
 
 		// Add direct lighting
-		if (inter.material.brdfType != BRDF_SPECULAR)
+		if (inter.material.bsdfType != BSDF_SPECULAR)
 		{
 			color += throughput * directIllumination(inter.material, inter.pos, inter.normal, -ray.dir);
 		}
@@ -525,28 +533,49 @@ vec3 sampleScene(const Ray startRay)
 		if (bounces == NUM_BOUNCES)
 			break;
 
-		// Sample BRDF for bounce ray direction and throughput
-		vec3 Li = sampleBRDF(inter.material, inter.inside, inter.normal, -ray.dir);
+		// Sample BSDF for bounce ray direction and throughput
+		vec3 Li = sampleBSDF(inter.material, inter.inside, inter.normal, -ray.dir);
 		vec3 sidedNormal = inter.normal * sign(dot(inter.normal, Li));
-		vec3 brdf = evaluateBRDF(inter.material, Li, sidedNormal, -ray.dir);
+		vec3 bsdf = evaluateBSDF(inter.material, Li, sidedNormal, -ray.dir);
 		float pdf = evaluatePDF(inter.material, Li, sidedNormal, -ray.dir);
-		if (brdf == vec3(0) || pdf == 0)
+		if (bsdf == vec3(0) || pdf == 0)
 			break;
 
 		float NdotL = abs(dot(Li, inter.normal));
-		throughput *= brdf * (NdotL / pdf);
+		throughput *= bsdf * (NdotL / pdf);
 
 		// Russian Roulette
 		float rrProb = max(throughput.r, max(throughput.g, throughput.b));
-		if (rrProb < rand())
+		if (rrProb < quasiRand())
 			break;
 		throughput /= rrProb; // Re-add lost energy for terminated paths
 
 		ray = makeRay(inter.pos + sidedNormal * EPSILON, Li);
-		specularBounce = inter.material.brdfType == BRDF_SPECULAR;
+		specularBounce = inter.material.bsdfType == BSDF_SPECULAR;
 	}
 
 	return color;
+}
+
+vec3 samplePixel(const uvec2 coord)
+{
+	vec2 uv = (coord + vec2(quasiRand(), quasiRand())) / framebufferSize;
+	vec3 dir = normalize(mix(mix(cam00.xyz, cam01.xyz, uv.y), mix(cam10.xyz, cam11.xyz, uv.y), uv.x));
+	return sampleScene(makeRay(camPos, dir));
+}
+
+void saveSample(const uvec2 coord, const vec3 color)
+{
+	if (PROGRESSIVE)
+	{
+		vec3 prev = numPasses > 1 ? imageLoad(framebuffer, ivec2(coord)).rgb : vec3(0);
+		vec3 newAvg = mix(prev, color, 1.0 / (SAMPLES_PER_PIXEL * numPasses));
+		imageStore(framebuffer, ivec2(coord), vec4(newAvg, 1));
+	}
+	else
+	{
+		imageStore(framebuffer, ivec2(coord), vec4(color / SAMPLES_PER_PIXEL, 1));
+	}
 }
 
 void main()
@@ -555,43 +584,27 @@ void main()
 	if (any(greaterThanEqual(pixelCoord, framebufferSize)))
 		return;
 
-#ifndef PARALLEL_SAMPLES
+	pixelIndex = gl_GlobalInvocationID.y * framebufferSize.x + gl_GlobalInvocationID.x;
 
-	vec2 framebufferSizeInv = 1.0 / vec2(framebufferSize);
-	vec2 uvBase = pixelCoord * framebufferSizeInv;
+#ifndef PARALLEL_SAMPLES
 
 	vec3 color = vec3(0);
 	for(int i = 0; i < SAMPLES_PER_PIXEL; i++)
 	{
 		sampleIndex = i;
-		uint invocationIndex = gl_GlobalInvocationID.y * framebufferSize.x * SAMPLES_PER_PIXEL + gl_GlobalInvocationID.x * SAMPLES_PER_PIXEL + sampleIndex;
-		initRand(invocationIndex);
+		initRand();
 
-		vec2 uv = uvBase + randomStratifiedOffset() * framebufferSizeInv;
-		vec3 dir = normalize(mix(mix(cam00.xyz, cam01.xyz, uv.y), mix(cam10.xyz, cam11.xyz, uv.y), uv.x));
-		color += sampleScene(makeRay(camPos, dir));
+		color += samplePixel(pixelCoord);
 	}
 
-	if (PROGRESSIVE)
-	{
-		vec3 prev = numPasses > 1 ? imageLoad(framebuffer, ivec2(pixelCoord)).rgb : vec3(0);
-		vec3 newAvg = mix(prev, color, 1.0 / (SAMPLES_PER_PIXEL * numPasses));
-		imageStore(framebuffer, ivec2(pixelCoord), vec4(newAvg, 1));
-	}
-	else
-	{
-		imageStore(framebuffer, ivec2(pixelCoord), vec4(color / SAMPLES_PER_PIXEL, 1));
-	}
+	saveSample(pixelCoord, color);
 
 #else
 
 	sampleIndex = gl_GlobalInvocationID.z;
-	uint invocationIndex = gl_GlobalInvocationID.y * framebufferSize.x * gl_WorkGroupSize.z + gl_GlobalInvocationID.x * gl_WorkGroupSize.z + gl_GlobalInvocationID.z;
-	initRand(invocationIndex);
+	initRand();
 
-	vec2 uv = (pixelCoord + randomStratifiedOffset()) / framebufferSize;
-	vec3 dir = normalize(mix(mix(cam00.xyz, cam01.xyz, uv.y), mix(cam10.xyz, cam11.xyz, uv.y), uv.x));
-	vec3 sampleColor = sampleScene(makeRay(camPos, dir));
+	vec3 sampleColor = samplePixel(pixelCoord);
 
 	uint localSampleIndex = gl_LocalInvocationID.y * gl_WorkGroupSize.x * gl_WorkGroupSize.z + gl_LocalInvocationID.x * gl_WorkGroupSize.z + gl_LocalInvocationID.z;
 	samples[localSampleIndex] = sampleColor;
@@ -609,21 +622,8 @@ void main()
 	if (gl_LocalInvocationID.z == 0)
 	{
 		vec3 color = samples[localSampleIndex];
-		if (PROGRESSIVE)
-		{
-			vec3 prev = numPasses > 1 ? imageLoad(framebuffer, ivec2(pixelCoord)).rgb : vec3(0);
-			vec3 newAvg = mix(prev, color, 1.0 / (SAMPLES_PER_PIXEL * numPasses));
-			imageStore(framebuffer, ivec2(pixelCoord), vec4(newAvg, 1));
-		}
-		else
-		{
-			imageStore(framebuffer, ivec2(pixelCoord), vec4(color / SAMPLES_PER_PIXEL, 1));
-		}
+		saveSample(pixelCoord, color);
 	}
 
 #endif
-
- 	//imageStore(framebuffer, ivec2(pixelCoord), vec4(vec3(vec2(gl_LocalInvocationID.xy) / vec2(gl_WorkGroupSize.xy), 1), 1));
-	//imageStore(framebuffer, ivec2(pixelCoord), vec4(vec3(vec2(gl_GlobalInvocationID.xy) / vec2(gl_NumWorkGroups.xy * gl_WorkGroupSize.xy), 1), 1));
-	//imageStore(framebuffer, ivec2(pixelCoord), vec4(vec3(rand(),rand(),rand()), 1));
 }
