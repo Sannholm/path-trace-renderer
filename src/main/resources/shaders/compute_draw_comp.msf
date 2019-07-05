@@ -7,7 +7,7 @@
 #ifndef PARALLEL_SAMPLES
 layout(local_size_x = 32, local_size_y = 32) in;
 #else
-layout(local_size_x = 4, local_size_y = 4, local_size_z = 64) in;
+layout(local_size_x = 4, local_size_y = 4, local_size_z = 16) in;
 #endif
 
 const uint BSDF_DIFFUSE = 0;
@@ -36,7 +36,6 @@ struct Sphere
 	uint objectId;
 	vec3 center;
 	float radius;
-	float area;
 	Material material;
 };
 
@@ -45,7 +44,6 @@ struct AABB
 	uint objectId;
 	vec3 min;
 	vec3 max;
-	float area;
 	Material material;
 };
 
@@ -55,7 +53,6 @@ struct Disk
 	vec3 center;
 	float radius;
 	vec3 normal;
-	float area;
 	Material material;
 };
 
@@ -93,10 +90,11 @@ const DisneyParams DISNEY_DEF = DisneyParams
 const int PATH_DEPTH = 5;
 
 #ifndef PARALLEL_SAMPLES
-const int SAMPLES_PER_PIXEL = 64;
+const int SAMPLES_PER_PIXEL = 16;
 #else
 const int SAMPLES_PER_PIXEL = int(gl_WorkGroupSize.z);
 #endif
+const float SAMPLES_PER_PIXEL_INV = 1.0 / SAMPLES_PER_PIXEL;
 
 const vec3 SUN_NORMAL = normalize(vec3(0.5, -0.5, -1));
 
@@ -105,15 +103,15 @@ layout(rgba32f) uniform restrict image2D framebuffer;
 uniform int numPasses;
 uniform float time;
 
-uniform vec4 cam00;
-uniform vec4 cam10;
-uniform vec4 cam01;
-uniform vec4 cam11;
-uniform vec3 camPos;
+uniform mat4 screenToCamera;
+uniform mat4 cameraToWorld;
 
 uniform sampler2D environmentTex;
 
 const uvec2 framebufferSize = imageSize(framebuffer);
+const vec2 framebufferSizeInv = vec2(1) / framebufferSize;
+
+const float numPassesInv = 1.0 / numPasses;
 
 uint pixelIndex;
 uint sampleIndex;
@@ -156,34 +154,33 @@ AABB aabbs[] = AABB[](
 );
 
 Disk disks[] = Disk[](
-	//makeDisk(-SUN_NORMAL * 149600e6, 695700e3, SUN_NORMAL, Material(BSDF_DIFFUSE, vec3(1,1,1) * 10000, vec3(1), 0, DISNEY_DEF)),
-	makeDisk(vec3(10,-5,-10), 1, normalize(vec3(1,0,1)), Material(BSDF_DIFFUSE, vec3(10), vec3(1), 0, DISNEY_DEF)),
-	makeDisk(vec3(0,2,0), 1, normalize(vec3(0,-1,1)), Material(BSDF_DIFFUSE, vec3(10), vec3(1), 0, DISNEY_DEF)),
-	makeDisk(vec3(20,5,0), 1, normalize(vec3(-1,-0.8,-0.7)), Material(BSDF_DIFFUSE, vec3(30), vec3(1), 0, DISNEY_DEF))
-	//makeDisk(vec3(0,10,0), 10, normalize(vec3(0,-1,0)), Material(BSDF_DIFFUSE, vec3(1), vec3(1), 0, DISNEY_DEF))
+	//makeDisk(-SUN_NORMAL * 149600e6, 695700e3, SUN_NORMAL, Material(BSDF_DIFFUSE, vec3(1,1,1) * 10000, vec3(0), 0, DISNEY_DEF)),
+	makeDisk(vec3(10,-5,-10), 1, normalize(vec3(1,0,1)), Material(BSDF_DIFFUSE, vec3(10), vec3(0), 0, DISNEY_DEF)),
+	makeDisk(vec3(0,1,-1), 1, normalize(vec3(0,-1,1)), Material(BSDF_DIFFUSE, vec3(10), vec3(0), 0, DISNEY_DEF)),
+	makeDisk(vec3(20,5,0), 1, normalize(vec3(-1,-0.8,-0.7)), Material(BSDF_DIFFUSE, vec3(30), vec3(0), 0, DISNEY_DEF))
+	//makeDisk(vec3(0,10,0), 10, normalize(vec3(0,-1,0)), Material(BSDF_DIFFUSE, vec3(1), vec3(0), 0, DISNEY_DEF))
+	//makeDisk(vec3(0,0,-40), 20, normalize(vec3(0,0,1)), Material(BSDF_DIFFUSE, vec3(1), vec3(0), 0, DISNEY_DEF)),
+	//makeDisk(vec3(-1,1,1)*20, 100, normalize(vec3(1,-1,-1)), Material(BSDF_DIFFUSE, vec3(0.1), vec3(0), 0, DISNEY_DEF))
 );
 
 Ray makeRay(const vec3 origin, const vec3 dir)
 {
-	return Ray(origin, dir, 1 / dir);
+	return Ray(origin, dir, 1.0 / dir);
 }
 
 Sphere makeSphere(const vec3 center, const float radius, const Material material)
 {
-	float area = 4 * PI * radius * radius;
-	return Sphere(nextObjectId++, center, radius, area, material);
+	return Sphere(nextObjectId++, center, radius, material);
 }
 
 AABB makeAABB(const vec3 center, const vec3 size, const Material material)
 {
-	float area = 2 * (size.y * size.z + size.x * size.z + size.x * size.y);
-	return AABB(nextObjectId++, center - size * 0.5, center + size * 0.5, area, material);
+	return AABB(nextObjectId++, center - size * 0.5, center + size * 0.5, material);
 }
 
 Disk makeDisk(const vec3 center, const float radius, const vec3 normal, const Material material)
 {
-	float area = PI * radius * radius;
-	return Disk(nextObjectId++, center, radius, normal, area, material);
+	return Disk(nextObjectId++, center, radius, normal, material);
 }
 
 void initRand()
@@ -225,8 +222,12 @@ bool intersectPlane(const vec3 center, const vec3 normal, const Ray r, out float
     float denom = dot(-normal, r.dir);
     if (denom > 1e-6)
     {
-        t = dot(center - r.origin, -normal) / denom;
-        return t >= 0;
+        t = dot(center - r.origin, -normal);
+        if (t >= 0)
+        {
+        	t /= denom;
+        	return true;
+        }
     }
     return false;
 }
@@ -353,7 +354,7 @@ vec3 evaluateBSDF(const Material material, const vec3 Li, const vec3 normal, con
 	{
 		default:
 		case BSDF_DIFFUSE:
-			return material.albedo / PI;
+			return material.albedo * PI_INV;
 		case BSDF_SPECULAR:
 			return material.albedo / dot(normal, Li); // TODO: Should be specular instead of albedo
 		case BSDF_REFRACT:
@@ -375,7 +376,7 @@ float evaluatePDF(const Material material, const vec3 Li, const vec3 normal, con
 	{
 		default:
 		case BSDF_DIFFUSE:
-			return dot(normal, Li) / PI;
+			return dot(normal, Li) * PI_INV;
 		case BSDF_SPECULAR:
 			return 1;
 		case BSDF_REFRACT:
@@ -442,7 +443,8 @@ vec3 directIllumination(const Material material, const vec3 pos, const vec3 norm
 			vec3 lightPos = sphere.center + sampleSphere(vec2(quasiRand(), quasiRand())) * sphere.radius;
 			float lightDistSquared = sq(lightPos - pos);
 			vec3 sampleDir = normalize(lightPos - pos);
-			light += lightContribution(sphere.objectId, material, sphere.material.radiance, pos, sphere.area, lightDistSquared, sampleDir, normal, Lo);
+			float area = 4 * PI * sphere.radius * sphere.radius;
+			light += lightContribution(sphere.objectId, material, sphere.material.radiance, pos, area, lightDistSquared, sampleDir, normal, Lo);
 		}
 	}
 	for (int i = 0; i < aabbs.length(); i++)
@@ -477,7 +479,9 @@ vec3 directIllumination(const Material material, const vec3 pos, const vec3 norm
 
 			float lightDistSquared = sq(lightPos - pos);
 			vec3 sampleDir = normalize(lightPos - pos);
-			light += lightContribution(aabb.objectId, material, aabb.material.radiance, pos, aabb.area, lightDistSquared, sampleDir, normal, Lo);
+			vec3 size = aabb.max - aabb.min;
+			float area = 2 * (size.y * size.z + size.x * size.z + size.x * size.y);
+			light += lightContribution(aabb.objectId, material, aabb.material.radiance, pos, area, lightDistSquared, sampleDir, normal, Lo);
 		}
 	}
 	for (int i = 0; i < disks.length(); i++)
@@ -485,10 +489,11 @@ vec3 directIllumination(const Material material, const vec3 pos, const vec3 norm
 		Disk disk = disks[i];
 		if (any(greaterThan(disk.material.radiance, vec3(0))))
 		{
-			vec3 lightPos = disk.center + sampleDisk(vec2(quasiRand(), quasiRand()), disk.normal) * disk.radius;
+			vec3 lightPos = disk.center + disk.radius * sampleDisk(vec2(quasiRand(), quasiRand())) * vectorLocalFrameMat(disk.normal);
 			float lightDistSquared = sq(lightPos - pos);
 			vec3 sampleDir = normalize(lightPos - pos);
-			light += lightContribution(disk.objectId, material, disk.material.radiance, pos, disk.area, lightDistSquared, sampleDir, normal, Lo);
+			float area = PI * disk.radius * disk.radius;
+			light += lightContribution(disk.objectId, material, disk.material.radiance, pos, area, lightDistSquared, sampleDir, normal, Lo);
 		}
 	}
 
@@ -497,9 +502,9 @@ vec3 directIllumination(const Material material, const vec3 pos, const vec3 norm
 
 vec3 background(const vec3 dir)
 {
-	return vec3(0);
+	//return vec3(0);
 	//return equirectangularMap(environmentTex, dir) * 0.7;
-	//return mix(vec3(0,0,0), vec3(0.2,0.4,1) * 10, pow(dot(dir, vec3(0,1,0)) * 0.5 + 0.5, 5)) * 0.1;
+	return mix(vec3(0,0,0), vec3(0.2,0.4,1) * 10, pow(dot(dir, vec3(0,1,0)) * 0.5 + 0.5, 5)) * 0.2;
 }
 
 vec3 sampleScene(const Ray startRay)
@@ -509,7 +514,7 @@ vec3 sampleScene(const Ray startRay)
 	
 	Ray ray = startRay;
 	bool specularBounce = false;
-	for (int bounces = 0; ; bounces++)
+	for (int bounces = 0;; bounces++)
 	{
 		Intersection inter = intersectScene(ray, INFINITY);
 
@@ -560,22 +565,44 @@ vec3 sampleScene(const Ray startRay)
 
 vec3 samplePixel(const uvec2 coord)
 {
-	vec2 uv = (coord + vec2(quasiRand(), quasiRand())) / framebufferSize;
-	vec3 dir = normalize(mix(mix(cam00.xyz, cam01.xyz, uv.y), mix(cam10.xyz, cam11.xyz, uv.y), uv.x));
-	return sampleScene(makeRay(camPos, dir));
+	vec2 pScreen = (coord + vec2(quasiRand(), quasiRand())) * framebufferSizeInv * 2 - 1; // Point on near plane in screen space
+	vec4 pCamera = vec4(pScreen, 0, 1) * screenToCamera; // Point on near plane in camera space
+	pCamera /= pCamera.w;
+	
+	// Camera space
+	vec4 pOrigin = vec4(0, 0, 0, 1);
+	vec4 dir = vec4(pCamera.xyz, 0);
+	
+	
+	// DOF
+	const float focalDistance = sqrt(15*15 + 30*30);
+	const float lensRadius = 2 * 0.5;
+	
+	vec2 pLens = sampleDisk(vec2(quasiRand(), quasiRand())).xy * lensRadius;
+	float ft = -focalDistance / dir.z;
+	vec3 pFocal = dir.xyz * ft;
+	pOrigin = vec4(pLens, 0, 1);
+	dir = vec4(pFocal - pOrigin.xyz, 0);
+	
+	
+	// Worldspace
+	pOrigin.xyz = pOrigin.xyz * mat3(cameraToWorld) + cameraToWorld[3].xyz; // Normal vec4*mat4 not working for some reason
+	dir = dir * cameraToWorld;
+	
+	return sampleScene(makeRay(pOrigin.xyz, normalize(dir.xyz)));
 }
 
 void saveSample(const uvec2 coord, const vec3 color)
 {
 #ifdef PROGRESSIVE
 
-	vec3 prev = numPasses > 1 ? imageLoad(framebuffer, ivec2(coord)).rgb : vec3(0);
-	vec3 newAvg = mix(prev, color, 1.0 / (SAMPLES_PER_PIXEL * numPasses));
+	vec3 prev = imageLoad(framebuffer, ivec2(coord)).rgb;
+	vec3 newAvg = mix(prev, color * SAMPLES_PER_PIXEL_INV, numPassesInv);
 	imageStore(framebuffer, ivec2(coord), vec4(newAvg, 1));
 
 #else
 
-	imageStore(framebuffer, ivec2(coord), vec4(color / SAMPLES_PER_PIXEL, 1));
+	imageStore(framebuffer, ivec2(coord), vec4(color * SAMPLES_PER_PIXEL_INV, 1));
 
 #endif
 }
@@ -613,7 +640,7 @@ void main()
 	memoryBarrierShared();
 	barrier();
 
-	for (uint stride = gl_WorkGroupSize.z / 2; stride > 0; stride >>= 1)
+	for (uint stride = gl_WorkGroupSize.z >> 1; stride > 0; stride >>= 1)
 	{
 		if (gl_LocalInvocationID.z < stride)
 			samples[localSampleIndex] += samples[localSampleIndex + stride];

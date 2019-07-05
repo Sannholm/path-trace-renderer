@@ -3,6 +3,7 @@
 const float INFINITY = 1.0 / 0.0;
 const float EPSILON = 1e-4;
 const float PI = 3.1415926535897932384626433832795;
+const float PI_INV = 1.0 / PI;
 
 // Util
 
@@ -92,12 +93,12 @@ vec3 sampleSphere(const vec2 rand)
 	return vec3(vec2(cos(theta), sin(theta)) * sqrt(1 - u * u), u);
 }
 
-vec3 sampleDisk(const vec2 rand, const vec3 normal)
+vec3 sampleDisk(const vec2 rand)
 {
 	float theta = acos(sqrt(1 - rand.x));
 	float phi = 2 * PI * rand.y;
 	vec3 v = vec3(vec2(cos(phi), sin(phi)) * sin(theta), 0);
-	return v * vectorLocalFrameMat(normal);
+	return v;
 }
 
 // Multiple Importance Sampling

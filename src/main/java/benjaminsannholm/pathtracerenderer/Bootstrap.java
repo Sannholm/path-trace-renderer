@@ -56,7 +56,6 @@ import benjaminsannholm.util.math.Quaternion;
 import benjaminsannholm.util.math.Sobol;
 import benjaminsannholm.util.math.Transform;
 import benjaminsannholm.util.math.Vector3;
-import benjaminsannholm.util.math.Vector4;
 import benjaminsannholm.util.opengl.BufferObject;
 import benjaminsannholm.util.opengl.GLAPI;
 import benjaminsannholm.util.opengl.debug.Query;
@@ -78,20 +77,20 @@ import benjaminsannholm.util.resource.ResourceLocator;
 public class Bootstrap
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(Bootstrap.class);
-    
+
     private static final Random RAND = ThreadLocalRandom.current();
 
     private static final int WINDOW_WIDTH = 256;
     private static final int WINDOW_HEIGHT = 256;
 
-    private static final int PASSES_PER_FRAME = 100;
-    
+    private static final int PASSES_PER_FRAME = 10;
+
     private static final ResourceLocator BASE_RESOURCE_LOCATOR = new PrefixedResourceLocator(
             new ClasspathResourceLocator(), "/");
-    
+
     private final TextureManager textureManager = new TextureManager(
             new PrefixedResourceLocator(BASE_RESOURCE_LOCATOR, "textures/"));
-    
+
     private final ShaderManager shaderManager = new ShaderManager(new FallbackResourceLocator(
             new PrefixedResourceLocator(new FileResourceLocator(), "shaders/"),
             new PrefixedResourceLocator(BASE_RESOURCE_LOCATOR, "shaders/")), 430, false);
@@ -115,14 +114,14 @@ public class Bootstrap
     private BufferObject sobolConstantsBufferObject;
 
     private Texture2D mainFrameBufferTex;
-    
+
     private Transform cameraTransform;
-    private Matrix4 projectionMatrix;
-    private Matrix4 viewMatrix;
-    private Vector4 cam00, cam10, cam01, cam11;
-    
+    private Matrix4 screenToCameraMatrix;
+    private Matrix4 cameraToWorldMatrix;
+
     private Query qSetup, qCompute, qBarrier, qComposite;
     private long totalFrameTime;
+
 
     public void run()
     {
@@ -145,27 +144,27 @@ public class Bootstrap
     {
         setupGLWindow();
         //GLAPI.setFramebufferSRGB(true);
-        
+
         final ByteBuffer sobolBuffer = BufferUtils.createByteBuffer(Sobol.SOBOL_MATRICES.length * 4);
         sobolBuffer.asIntBuffer().put(Sobol.SOBOL_MATRICES);
         sobolConstantsBufferObject = new BufferObject(BufferObject.Type.SHADER_STORAGE, sobolBuffer);
         sobolConstantsBufferObject.bindIndexed(0);
-        
+
         qSetup = new Query(Type.TIME_ELAPSED);
         qCompute = new Query(Type.TIME_ELAPSED);
         qBarrier = new Query(Type.TIME_ELAPSED);
         qComposite = new Query(Type.TIME_ELAPSED);
-        
+
         setupScene(sceneTime);
     }
-    
+
     private void setupGLWindow()
     {
         GLFWErrorCallback.createPrint(System.err).set();
-        
+
         if (!glfwInit())
             throw new IllegalStateException("Unable to initialize GLFW");
-        
+
         glfwDefaultWindowHints();
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
@@ -174,19 +173,19 @@ public class Bootstrap
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_COMPAT_PROFILE);
         glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_TRUE);
         glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
-        
+
         window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Renderer", NULL, NULL);
         if (window == NULL)
             throw new RuntimeException("Failed to create the GLFW window");
-        
+
         final GLFWVidMode vidmode = glfwGetVideoMode(glfwGetPrimaryMonitor());
         glfwSetWindowPos(window, (vidmode.width() - WINDOW_WIDTH) / 2, (vidmode.height() - WINDOW_HEIGHT) / 2);
-        
+
         glfwMakeContextCurrent(window);
         GL.createCapabilities(true);
         GLAPI.setupDebugPrinting();
         glfwSwapInterval(1);
-        
+
         glfwSetKeyCallback(window, (window, key, scancode, action, mods) ->
         {
             if (action == GLFW_RELEASE)
@@ -208,9 +207,9 @@ public class Bootstrap
                 }
             }
         });
-        
+
         glfwSetFramebufferSizeCallback(window, this::onResize);
-        
+
         glfwShowWindow(window);
     }
 
@@ -221,11 +220,11 @@ public class Bootstrap
         {
             this.width = width;
             this.height = height;
-            
+
             if (mainFrameBufferTex != null)
                 mainFrameBufferTex.dispose();
             mainFrameBufferTex = null;
-            
+
             cameraTransform = null;
             resetRender();
         }
@@ -235,10 +234,10 @@ public class Bootstrap
     {
         numPasses = 0;
         totalFrameTime = 0;
-        
+
         setupScene(sceneTime);
     }
-    
+
     private void loop()
     {
         prevLoopTime = glfwGetTime();
@@ -247,7 +246,7 @@ public class Bootstrap
             final double delta = glfwGetTime() - prevLoopTime;
             timeElapsed += delta;
             prevLoopTime = glfwGetTime();
-            
+
             fpsCounter++;
             if (glfwGetTime() - lastFPSTime >= 1)
             {
@@ -255,46 +254,46 @@ public class Bootstrap
                 fpsCounter = 0;
                 lastFPSTime = glfwGetTime();
             }
-            
+
             if (timeElapsed % 1 < 0.05)
             {
                 System.out.println(fps);
             }
-            
-            /*if (numPasses == PASSES_PER_FRAME)
+
+            if (numPasses == PASSES_PER_FRAME && false)
             {
                 sceneTime += 1 / 30F;
                 //sceneTime += glfwGetTime() - lastFrameTime;
                 lastFrameTime = glfwGetTime();
-            
+                
                 resetRender();
-            }*/
-            
+            }
+
             render();
-            
+
             glfwSwapBuffers(window);
             glfwPollEvents();
         }
     }
-    
+
     private void setupScene(double time)
     {
         updateCameraTransform(time);
     }
-    
+
     private void updateCameraTransform(double time)
     {
-        final float angle = 20 * (float)Math.sin(Math.toRadians(time * 100));
+        final float angle = (float)(40 * Math.sin(Math.toRadians(time * 100)));
         setCameraTransform(Transform.create(
-                Vector3.create(0, 0, 40).rotateY(angle),
-                Quaternion.fromAxisAngle(Vector3.Y_AXIS, -angle),
+                Vector3.create(0, 0, 30).rotateY(angle),
+                Quaternion.fromAxisAngle(Vector3.Y_AXIS, angle),
                 Vector3.ONE));
-        /*setCameraTransform(Transform.create(
-                Vector3.create(0, 0, 50),
-                Quaternion.IDENTITY,
-                Vector3.ONE));*/
+        setCameraTransform(Transform.create(
+                Vector3.create(-15, 0, 30),
+                Quaternion.fromAxisAngle(Vector3.Y_AXIS, 30),
+                Vector3.ONE));
     }
-    
+
     private void setCameraTransform(Transform transform)
     {
         if (cameraTransform == null || !cameraTransform.equals(transform))
@@ -306,18 +305,8 @@ public class Bootstrap
 
     private void updateCamera()
     {
-        projectionMatrix = Matrix4.createPerspectiveProjection(0.1F, 1000, 110, (float)width / height);
-        viewMatrix = cameraTransform.getRot().toMatrix4();
-        final Matrix4 invViewProjMatrix = projectionMatrix.multiply(viewMatrix).invert();
-        
-        cam00 = Vector4.create(-1, -1, 0, 1).multiply(invViewProjMatrix);
-        cam00 = cam00.divide(cam00.getW());
-        cam10 = Vector4.create(1, -1, 0, 1).multiply(invViewProjMatrix);
-        cam10 = cam10.divide(cam10.getW());
-        cam01 = Vector4.create(-1, 1, 0, 1).multiply(invViewProjMatrix);
-        cam01 = cam01.divide(cam01.getW());
-        cam11 = Vector4.create(1, 1, 0, 1).multiply(invViewProjMatrix);
-        cam11 = cam11.divide(cam11.getW());
+        screenToCameraMatrix = Matrix4.createPerspectiveProjection(0.1F, 1000, 100, (float)width / height).invert();
+        cameraToWorldMatrix = cameraTransform.toMatrix();
     }
 
     private void render()
@@ -328,36 +317,33 @@ public class Bootstrap
                     .format(Format.RGBA32F)
                     .build();
         }
-        
+
         if (numPasses < PASSES_PER_FRAME)
         {
             qSetup.begin();
-            
+
             mainFrameBufferTex.bindImage(0, Access.READ_WRITE, Format.RGBA32F);
             textureManager.getTexture("environment/table_mountain_2_1k.exr").bind(0);
-            
+
             final ShaderProgram program = shaderManager.getProgram("compute_draw");
             //final ShaderProgram program = shaderManager.getProgram("test_sobol");
             program.setUniform("framebuffer", 0);
             program.setUniform("numPasses", numPasses + 1);
             program.setUniform("time", (float)timeElapsed);
-            program.setUniform("cam00", cam00);
-            program.setUniform("cam10", cam10);
-            program.setUniform("cam01", cam01);
-            program.setUniform("cam11", cam11);
-            program.setUniform("camPos", cameraTransform.getPos());
+            program.setUniform("screenToCamera", screenToCameraMatrix);
+            program.setUniform("cameraToWorld", cameraToWorldMatrix);
             program.setUniform("environmentTex", 0);
             program.use();
 
             qSetup.end();
-            
+
             final int numGroupsX = FastMath.fastCeil((float)mainFrameBufferTex.getWidth() / program.getWorkgroupSizeX());
             final int numGroupsY = FastMath.fastCeil((float)mainFrameBufferTex.getHeight() / program.getWorkgroupSizeY());
-            
+
             qCompute.begin();
             program.dispatchCompute(numGroupsX, numGroupsY, 1);
             qCompute.end();
-            
+
             qBarrier.begin();
             GLAPI.memoryBarrier(GL42.GL_TEXTURE_FETCH_BARRIER_BIT | GL42.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
             qBarrier.end();
@@ -366,23 +352,23 @@ public class Bootstrap
         if (numPasses < PASSES_PER_FRAME)
         {
             qComposite.begin();
-            
+
             FrameBuffer.unBind();
             GLAPI.setViewport(0, 0, width, height);
-            
+
             mainFrameBufferTex.bind(0);
-            
+
             final ShaderProgram program = shaderManager.getProgram("post_process");
             program.setUniform("tex", 0);
             program.setUniform("exposure", 1F);
-            //program2.setUniform("exposure", (FastMath.sin((float)timeElapsed * 2) * 0.5F + 0.5F) * 100);
+            //program.setUniform("exposure", (FastMath.sin((float)timeElapsed * 2) * 0.5F + 0.5F) * 100);
             program.use();
-            
+
             FullscreenQuadRenderer.render();
-            
+
             qComposite.end();
         }
-        
+
         if (numPasses < PASSES_PER_FRAME)
         {
             final long tSetup = qSetup.getResult();
